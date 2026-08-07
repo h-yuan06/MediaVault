@@ -58,13 +58,7 @@ struct ContentView: View {
             List(selection: $selectedSourceIds) {
                 // Groups
                 ForEach(store.groups.filter { !$0.isPrivate || privateUnlocked }) { group in
-                    Section(isExpanded: Binding(
-                        get: { expandedGroups.contains(group.id) },
-                        set: { expanded in
-                            if expanded { expandedGroups.insert(group.id) }
-                            else { expandedGroups.remove(group.id) }
-                        }
-                    )) {
+                    Section(isExpanded: isExpanded(group)) {
                         ForEach(store.sources(in: group)) { source in
                             sourceRow(source)
                         }
@@ -190,6 +184,16 @@ struct ContentView: View {
                     }
                 }
             }
+    }
+
+    private func isExpanded(_ group: SourceGroup) -> Binding<Bool> {
+        Binding(
+            get: { expandedGroups.contains(group.id) },
+            set: { expanded in
+                if expanded { expandedGroups.insert(group.id) }
+                else { expandedGroups.remove(group.id) }
+            }
+        )
     }
 
     private func deleteSelected() {

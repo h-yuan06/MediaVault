@@ -17,7 +17,7 @@ if [ "${CI}" = "true" ]; then
     mkdir -p .build
     eval swiftc \
         -sdk "$SDK" \
-        -target arm64-apple-macosx13.0 \
+        -target arm64-apple-macosx14.0 \
         -parse-as-library \
         -framework SwiftUI \
         -framework AppKit \
@@ -62,7 +62,7 @@ cat > "${APP_BUNDLE}/Contents/Info.plist" << 'PLIST'
     <key>CFBundlePackageType</key>         <string>APPL</string>
     <key>CFBundleShortVersionString</key>  <string>1.0</string>
     <key>CFBundleVersion</key>             <string>0</string>
-    <key>LSMinimumSystemVersion</key>      <string>13.0</string>
+    <key>LSMinimumSystemVersion</key>      <string>14.0</string>
     <key>NSPrincipalClass</key>            <string>NSApplication</string>
     <key>NSHighResolutionCapable</key>     <true/>
     <key>NSFaceIDUsageDescription</key>    <string>Unlock private groups in MediaVault</string>
