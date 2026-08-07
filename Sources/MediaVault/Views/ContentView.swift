@@ -1,0 +1,385 @@
+import SwiftUI
+import LocalAuthentication
+
+struct ContentView: View {
+    @EnvironmentObject var store: SourceStore
+    @EnvironmentObject var engine: DownloadEngine
+    @EnvironmentObject var scheduler: Scheduler
+    @EnvironmentObject var tools: ToolChecker
+
+    @State private var selectedSourceId: UUID?
+    @State private var showingAddSheet = false
+    @State private var showingToolAlert = false
+    @State private var renamingGroup: SourceGroup? = nil
+    @State private var newGroupName = ""
+    @State private var privateUnlocked = false
+    @Environment(\.scenePhase) private var scenePhase
+
+    var body: some View {
+        Group {
+            if store.downloadRootURL == nil {
+                folderPickerPrompt
+            } else if !tools.allAvailable {
+                toolsSetupView
+            } else {
+                mainLayout
+            }
+        }
+        .onAppear {
+            Task { await tools.check() }
+        }
+    }
+
+    // MARK: - Main layout
+
+    private var mainLayout: some View {
+        NavigationSplitView {
+            sidebar
+                .navigationSplitViewColumnWidth(min: 220, ideal: 260)
+        } detail: {
+            if let id = selectedSourceId, let source = store.sources.first(where: { $0.id == id }) {
+                SourceDetailView(source: source)
+                    .environmentObject(store)
+                    .environmentObject(engine)
+                    .environmentObject(tools)
+            } else {
+                downloadQueueFallback
+            }
+        }
+    }
+
+    private var sidebar: some View {
+        VStack(spacing: 0) {
+            List(selection: $selectedSourceId) {
+                // Groups
+                ForEach(store.groups.filter { !$0.isPrivate || privateUnlocked }) { group in
+                    Section {
+                        ForEach(store.sources(in: group)) { source in
+                            sourceRow(source)
+                        }
+                    } header: {
+                        HStack {
+                            if group.isPrivate {
+                                Image(systemName: "lock.fill")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Text(group.name).font(.caption.bold())
+                            Spacer()
+                            Menu {
+                                Button("Rename…") { beginRename(group) }
+                                if group.isPrivate {
+                                    Button("Remove Lock") { store.setPrivate(false, for: group) }
+                                } else {
+                                    Button("Make Private…") { store.setPrivate(true, for: group) }
+                                }
+                                Divider()
+                                Button("Delete Group", role: .destructive) {
+                                    store.removeGroup(group)
+                                }
+                            } label: {
+                                Image(systemName: "ellipsis")
+                                    .font(.caption)
+                            }
+                            .menuStyle(.borderlessButton)
+                            .fixedSize()
+                        }
+                    }
+                }
+
+                // Ungrouped sources
+                if !store.ungroupedSources.isEmpty {
+                    if !store.groups.isEmpty {
+                        Section("Ungrouped") {
+                            ForEach(store.ungroupedSources) { source in
+                                sourceRow(source)
+                            }
+                        }
+                    } else {
+                        ForEach(store.ungroupedSources) { source in
+                            sourceRow(source)
+                        }
+                    }
+                }
+            }
+            .listStyle(.sidebar)
+
+            Divider()
+            sidebarToolbar
+        }
+        .navigationTitle("MediaVault")
+        .onChange(of: scenePhase) { phase in
+            if phase != .active { privateUnlocked = false }
+        }
+        .alert("Rename Group", isPresented: Binding(
+            get: { renamingGroup != nil },
+            set: { if !$0 { renamingGroup = nil } }
+        )) {
+            TextField("Group name", text: $newGroupName)
+            Button("Rename") {
+                if let g = renamingGroup, !newGroupName.isEmpty {
+                    store.renameGroup(g, to: newGroupName)
+                }
+                renamingGroup = nil
+            }
+            Button("Cancel", role: .cancel) { renamingGroup = nil }
+        }
+    }
+
+    @ViewBuilder
+    private func sourceRow(_ source: FollowedSource) -> some View {
+        SourceRowView(source: source)
+            .tag(source.id)
+            .contextMenu {
+                Button("Sync Now") { engine.sync(source: source, store: store) }
+
+                Menu("Move to Group") {
+                    ForEach(store.groups) { group in
+                        Button(group.name) { store.moveSource(source, toGroup: group) }
+                    }
+                    if store.group(for: source) != nil {
+                        Divider()
+                        Button("Remove from Group") { store.moveSource(source, toGroup: nil) }
+                    }
+                    Divider()
+                    Button("New Group…") {
+                        let g = SourceGroup(name: "New Group")
+                        store.addGroup(name: g.name)
+                        store.moveSource(source, toGroup: store.groups.last!)
+                        if let last = store.groups.last { beginRename(last) }
+                    }
+                }
+
+                Divider()
+                Button("Remove", role: .destructive) {
+                    engine.cancelAll(for: source.id)
+                    store.remove(source)
+                }
+            }
+    }
+
+    private func beginRename(_ group: SourceGroup) {
+        newGroupName = group.name
+        renamingGroup = group
+    }
+
+    private func togglePrivate() {
+        if privateUnlocked {
+            privateUnlocked = false
+        } else {
+            Task { privateUnlocked = await authenticate() }
+        }
+    }
+
+    private func authenticate() async -> Bool {
+        let context = LAContext()
+        var error: NSError?
+        guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) else { return true }
+        do {
+            return try await context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: "Unlock your private groups")
+        } catch {
+            return false
+        }
+    }
+
+    private var sidebarToolbar: some View {
+        HStack {
+            Button(action: { showingAddSheet = true }) {
+                Label("Add", systemImage: "plus")
+            }
+            .buttonStyle(.plain)
+            .padding(8)
+            .help("Add a new channel")
+
+            Button(action: { store.addGroup(name: "New Group"); if let g = store.groups.last { beginRename(g) } }) {
+                Image(systemName: "folder.badge.plus")
+            }
+            .buttonStyle(.plain)
+            .padding(.leading, 4)
+            .help("New group")
+
+            Spacer()
+
+            Menu {
+                if store.cookiesFileURL != nil {
+                    Button("Change cookies.txt…") { store.selectCookiesFile() }
+                    Button("Clear Cookies", role: .destructive) { store.clearCookiesFile() }
+                } else {
+                    Button("Import cookies.txt…") { store.selectCookiesFile() }
+                }
+            } label: {
+                Image(systemName: store.cookiesFileURL != nil ? "key.fill" : "key")
+                    .foregroundStyle(store.cookiesFileURL != nil ? .secondary : Color.orange)
+                
+                
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .padding(.trailing, 4)
+            .help(store.cookiesFileURL != nil ? "Cookies imported" : "No cookies — YouTube downloads may fail")
+
+            if store.groups.contains(where: { $0.isPrivate }) {
+                Button(action: togglePrivate) {
+                    Image(systemName: privateUnlocked ? "lock.open.fill" : "lock.fill")
+                        .foregroundStyle(privateUnlocked ? .green : .secondary)
+                }
+                .buttonStyle(.plain)
+                .padding(.trailing, 4)
+                .help(privateUnlocked ? "Lock private groups" : "Unlock private groups")
+            }
+
+            if scheduler.isRunning {
+                ProgressView().scaleEffect(0.6)
+                    .padding(.trailing, 8)
+            } else {
+                Button(action: { scheduler.checkNow() }) {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .buttonStyle(.plain)
+                .padding(.trailing, 8)
+                .help("Check all sources for new content")
+            }
+        }
+        .sheet(isPresented: $showingAddSheet) {
+            AddSourceSheet()
+                .environmentObject(store)
+                .environmentObject(engine)
+        }
+    }
+
+    private var downloadQueueFallback: some View {
+        DownloadQueueView()
+            .environmentObject(engine)
+    }
+
+    // MARK: - Onboarding screens
+
+    private var folderPickerPrompt: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "folder.badge.plus")
+                .font(.system(size: 64))
+                .foregroundStyle(.secondary)
+            Text("Choose a Download Folder")
+                .font(.title2.bold())
+            Text("MediaVault will save all downloaded media here.\nYou can change this later in Settings.")
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.secondary)
+            Button("Choose Folder…") {
+                store.selectDownloadFolder()
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding()
+    }
+
+    private var toolsSetupView: some View {
+        VStack(spacing: 24) {
+            Image(systemName: "wrench.and.screwdriver")
+                .font(.system(size: 56))
+                .foregroundStyle(.orange)
+            Text("Install Required Tools")
+                .font(.title2.bold())
+            Text("Open Terminal and run the commands below for any missing tools.")
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.secondary)
+
+            VStack(alignment: .leading, spacing: 12) {
+                toolRow(status: tools.ytdlp,
+                        command: "pip install yt-dlp",
+                        note: "or: brew install yt-dlp")
+                toolRow(status: tools.ffmpeg,
+                        command: "brew install ffmpeg")
+                toolRow(status: tools.deno,
+                        command: "curl -fsSL https://deno.land/install.sh | sh")
+                toolRow(status: tools.galleryDl,
+                        command: "pip install gallery-dl",
+                        note: "optional — for Reddit")
+            }
+            .padding()
+            .background(.quaternary, in: RoundedRectangle(cornerRadius: 10))
+
+            cookiesRow
+
+            Button(action: { Task { await tools.check() } }) {
+                if tools.isChecking {
+                    HStack(spacing: 8) {
+                        ProgressView().scaleEffect(0.8)
+                        Text("Checking…")
+                    }
+                } else {
+                    Text("Re-check Tools")
+                }
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(tools.isChecking)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(32)
+    }
+
+    private var cookiesRow: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: store.cookiesFileURL != nil ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+                .foregroundStyle(store.cookiesFileURL != nil ? .green : .orange)
+                .frame(width: 18)
+                .padding(.top, 2)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Browser Cookies")
+                    .font(.caption.bold())
+                    .foregroundStyle(.secondary)
+                if let url = store.cookiesFileURL {
+                    Text(url.lastPathComponent)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Button("Change…") { store.selectCookiesFile() }
+                        .font(.caption2)
+                } else {
+                    Text("Required for YouTube downloads")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                    Text("Export cookies.txt from your browser using an extension like \"Get cookies.txt LOCALLY\", then import it here.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Button("Import cookies.txt…") { store.selectCookiesFile() }
+                        .font(.caption)
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .padding(.top, 2)
+                }
+            }
+        }
+    }
+
+    private func toolRow(status: ToolStatus, command: String, note: String? = nil) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: status.isAvailable ? "checkmark.circle.fill" : "xmark.circle.fill")
+                .foregroundStyle(status.isAvailable ? .green : .red)
+                .frame(width: 18)
+                .padding(.top, 2)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(status.name)
+                    .font(.caption.bold())
+                    .foregroundStyle(.secondary)
+                if !status.isAvailable {
+                    Text(command)
+                        .font(.system(.caption, design: .monospaced))
+                    if let note {
+                        Text(note)
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                } else {
+                    Text(status.path ?? "")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+            }
+        }
+    }
+}

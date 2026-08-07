@@ -1,0 +1,108 @@
+import Foundation
+
+struct ToolStatus {
+    let name: String
+    let path: String?
+    var isAvailable: Bool { path != nil }
+}
+
+@MainActor
+class ToolChecker: ObservableObject {
+    static let shared: ToolChecker = {
+        MainActor.assumeIsolated { ToolChecker() }
+    }()
+
+    @Published private(set) var ytdlp     = ToolStatus(name: "yt-dlp",     path: nil)
+    @Published private(set) var galleryDl = ToolStatus(name: "gallery-dl", path: nil)
+    @Published private(set) var ffmpeg    = ToolStatus(name: "ffmpeg",      path: nil)
+    @Published private(set) var deno      = ToolStatus(name: "Deno",        path: nil)
+    @Published private(set) var isChecking = false
+
+    var allAvailable: Bool { ytdlp.isAvailable && ffmpeg.isAvailable && deno.isAvailable }
+
+    private static let defaults = UserDefaults.standard
+    private static let cachedPathsKey = "toolPaths"
+
+    private init() {
+        // Restore cached paths immediately so the UI doesn't block on relaunch
+        if let saved = Self.defaults.dictionary(forKey: Self.cachedPathsKey) as? [String: String] {
+            if let p = saved["yt-dlp"]     { ytdlp     = ToolStatus(name: "yt-dlp",     path: p) }
+            if let p = saved["gallery-dl"] { galleryDl = ToolStatus(name: "gallery-dl", path: p) }
+            if let p = saved["ffmpeg"]     { ffmpeg    = ToolStatus(name: "ffmpeg",      path: p) }
+            if let p = saved["deno"]       { deno      = ToolStatus(name: "Deno",        path: p) }
+        } else {
+            // First launch — check immediately
+            Task { await check() }
+        }
+    }
+
+    func check() async {
+        isChecking = true
+        let (yt, gd, ff, dn) = await Task.detached(priority: .utility) {
+            let ytPath = Self.resolve("yt-dlp")
+            if let path = ytPath { Self.update(toolPath: path) }
+            return (ytPath, Self.resolve("gallery-dl"), Self.resolve("ffmpeg"), Self.resolve("deno"))
+        }.value
+        ytdlp     = ToolStatus(name: "yt-dlp",     path: yt)
+        galleryDl = ToolStatus(name: "gallery-dl", path: gd)
+        ffmpeg    = ToolStatus(name: "ffmpeg",      path: ff)
+        deno      = ToolStatus(name: "Deno",        path: dn)
+        isChecking = false
+
+        // Persist found paths so subsequent launches skip the check
+        var cache: [String: String] = [:]
+        if let p = yt { cache["yt-dlp"]     = p }
+        if let p = gd { cache["gallery-dl"] = p }
+        if let p = ff { cache["ffmpeg"]      = p }
+        if let p = dn { cache["deno"]        = p }
+        Self.defaults.set(cache, forKey: Self.cachedPathsKey)
+    }
+
+    private nonisolated static func resolve(_ tool: String) -> String? {
+        let searchDirs = [
+            "\(NSHomeDirectory())/.deno/bin",
+            "/opt/anaconda3/envs/Reddit_Download/bin",
+            "/opt/homebrew/bin",
+            "/opt/homebrew/sbin",
+            "/usr/local/bin",
+            "/usr/bin",
+            "/bin",
+        ]
+        for dir in searchDirs {
+            let path = "\(dir)/\(tool)"
+            if FileManager.default.isExecutableFile(atPath: path) { return path }
+        }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/zsh")
+        process.arguments = ["-l", "-c", "command -v \(tool)"]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = Pipe()
+        try? process.run()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0,
+              let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+              !output.isEmpty,
+              FileManager.default.isExecutableFile(atPath: output) else { return nil }
+        return output
+    }
+
+    private nonisolated static func update(toolPath: String) {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: toolPath)
+        process.arguments = ["-U"]
+        process.standardOutput = Pipe()
+        process.standardError = Pipe()
+        try? process.run()
+        process.waitUntilExit()
+    }
+
+    var ytdlpPath:    String { ytdlp.path    ?? "/opt/anaconda3/envs/Reddit_Download/bin/yt-dlp" }
+    var galleryDlPath: String { galleryDl.path ?? "gallery-dl" }
+    var ffmpegPath:   String { ffmpeg.path   ?? "/opt/anaconda3/envs/Reddit_Download/bin/ffmpeg" }
+    var ffprobePath:  String {
+        guard let p = ffmpeg.path else { return "ffprobe" }
+        return URL(fileURLWithPath: p).deletingLastPathComponent().appendingPathComponent("ffprobe").path
+    }
+}
