@@ -4,11 +4,40 @@ import os.log
 
 private let log = Logger(subsystem: "com.mediavault.app", category: "AutoUpdater")
 
+// MARK: - Download delegate for progress reporting
+
+private final class DownloadDelegate: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
+    var onProgress: (Double) -> Void = { _ in }
+    var onComplete: (URL?, Error?) -> Void = { _, _ in }
+
+    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask,
+                    didWriteData _: Int64, totalBytesWritten: Int64, totalBytesExpectedToWrite total: Int64) {
+        guard total > 0 else { return }
+        onProgress(Double(totalBytesWritten) / Double(total))
+    }
+
+    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask,
+                    didFinishDownloadingTo location: URL) {
+        let dest = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString + ".zip")
+        try? FileManager.default.moveItem(at: location, to: dest)
+        onComplete(dest, nil)
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        if let error { onComplete(nil, error) }
+    }
+}
+
+// MARK: - AutoUpdater
+
 @MainActor
-class AutoUpdater {
+class AutoUpdater: ObservableObject {
     static let shared: AutoUpdater = {
         MainActor.assumeIsolated { AutoUpdater() }
     }()
+
+    @Published var downloadProgress: Double? = nil  // nil = idle, 0–1 = downloading
 
     private let releasesURL = URL(string: "https://api.github.com/repos/h-yuan06/MediaVault/releases/latest")!
 
@@ -40,11 +69,7 @@ class AutoUpdater {
             }
 
             log.info("Remote build: \(remoteBuild)")
-
-            guard remoteBuild > localBuild else {
-                log.info("Already up to date")
-                return
-            }
+            guard remoteBuild > localBuild else { log.info("Already up to date"); return }
 
             guard
                 let assets = json["assets"] as? [[String: Any]],
@@ -57,11 +82,31 @@ class AutoUpdater {
             }
 
             log.info("Downloading update from \(downloadString)")
-            let (tempZip, _) = try await URLSession.shared.download(from: downloadURL)
+            downloadProgress = 0
+            let tempZip = try await downloadWithProgress(from: downloadURL)
             log.info("Download complete — installing")
             try installUpdate(from: tempZip)
         } catch {
             log.error("Update failed: \(error.localizedDescription)")
+            downloadProgress = nil
+        }
+    }
+
+    private func downloadWithProgress(from url: URL) async throws -> URL {
+        try await withCheckedThrowingContinuation { continuation in
+            let delegate = DownloadDelegate()
+            let session = URLSession(configuration: .default, delegate: delegate, delegateQueue: nil)
+
+            delegate.onProgress = { [weak self] fraction in
+                Task { @MainActor [weak self] in self?.downloadProgress = fraction }
+            }
+            delegate.onComplete = { tempURL, error in
+                session.invalidateAndCancel()
+                if let error { continuation.resume(throwing: error) }
+                else if let tempURL { continuation.resume(returning: tempURL) }
+            }
+
+            session.downloadTask(with: url).resume()
         }
     }
 
@@ -76,7 +121,6 @@ class AutoUpdater {
             .appendingPathComponent("MediaVault_update_\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
 
-        // Unzip the downloaded bundle
         let unzip = Process()
         unzip.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
         unzip.arguments = ["-q", zipURL.path, "-d", tempDir.path]
@@ -84,8 +128,6 @@ class AutoUpdater {
         unzip.waitUntilExit()
 
         let newAppPath = tempDir.appendingPathComponent("MediaVault.app").path
-
-        // Shell script: wait for us to quit, strip quarantine, move new app in, relaunch
         let script = """
         #!/bin/bash
         sleep 1
@@ -99,7 +141,6 @@ class AutoUpdater {
         try script.write(toFile: scriptPath, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: scriptPath)
 
-        // Launch script detached so it survives our process terminating
         let launcher = Process()
         launcher.executableURL = URL(fileURLWithPath: "/bin/sh")
         launcher.arguments = ["-c", "nohup bash '\(scriptPath)' > /dev/null 2>&1 &"]

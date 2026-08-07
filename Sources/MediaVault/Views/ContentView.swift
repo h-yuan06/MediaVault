@@ -6,6 +6,7 @@ struct ContentView: View {
     @EnvironmentObject var engine: DownloadEngine
     @EnvironmentObject var scheduler: Scheduler
     @EnvironmentObject var tools: ToolChecker
+    @EnvironmentObject var updater: AutoUpdater
 
     @State private var selectedSourceIds: Set<UUID> = []
     @State private var showingAddSheet = false
@@ -17,7 +18,15 @@ struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
-        Group {
+        VStack(spacing: 0) {
+            if let progress = updater.downloadProgress {
+                ProgressView(value: progress)
+                    .progressViewStyle(.linear)
+                    .tint(.accentColor)
+                    .frame(height: 3)
+                    .animation(.linear, value: progress)
+            }
+            Group {
             if store.downloadRootURL == nil {
                 folderPickerPrompt
             } else if !tools.allAvailable {
@@ -29,6 +38,8 @@ struct ContentView: View {
         .onAppear {
             Task { await tools.check() }
         }
+            } // Group
+        } // VStack
     }
 
     // MARK: - Main layout
@@ -64,6 +75,12 @@ struct ContentView: View {
                         }
                     } header: {
                         HStack {
+                            Image(systemName: "chevron.right")
+                                .font(.caption2.bold())
+                                .foregroundStyle(.secondary)
+                                .rotationEffect(expandedGroups.contains(group.id) ? .degrees(90) : .zero)
+                                .animation(.easeInOut(duration: 0.2), value: expandedGroups.contains(group.id))
+                                .onTapGesture { isExpanded(group).wrappedValue.toggle() }
                             if group.isPrivate {
                                 Image(systemName: "lock.fill")
                                     .font(.caption2)

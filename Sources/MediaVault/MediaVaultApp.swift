@@ -6,6 +6,7 @@ struct MediaVaultApp: App {
     @StateObject private var engine = DownloadEngine.shared
     @StateObject private var scheduler = Scheduler.shared
     @StateObject private var tools = ToolChecker.shared
+    @StateObject private var updater = AutoUpdater.shared
 
     var body: some Scene {
         WindowGroup {
@@ -14,6 +15,7 @@ struct MediaVaultApp: App {
                 .environmentObject(engine)
                 .environmentObject(scheduler)
                 .environmentObject(tools)
+                .environmentObject(updater)
                 .frame(minWidth: 800, minHeight: 520)
                 .onAppear { AutoUpdater.shared.checkAndInstall() }
         }
