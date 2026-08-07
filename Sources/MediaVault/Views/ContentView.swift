@@ -13,6 +13,7 @@ struct ContentView: View {
     @State private var renamingGroup: SourceGroup? = nil
     @State private var newGroupName = ""
     @State private var privateUnlocked = false
+    @State private var expandedGroups: Set<UUID> = []
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -57,7 +58,13 @@ struct ContentView: View {
             List(selection: $selectedSourceIds) {
                 // Groups
                 ForEach(store.groups.filter { !$0.isPrivate || privateUnlocked }) { group in
-                    Section {
+                    Section(isExpanded: Binding(
+                        get: { expandedGroups.contains(group.id) },
+                        set: { expanded in
+                            if expanded { expandedGroups.insert(group.id) }
+                            else { expandedGroups.remove(group.id) }
+                        }
+                    )) {
                         ForEach(store.sources(in: group)) { source in
                             sourceRow(source)
                         }
@@ -119,6 +126,15 @@ struct ContentView: View {
             sidebarToolbar
         }
         .navigationTitle("MediaVault")
+        .onAppear {
+            expandedGroups = Set(store.groups.map { $0.id })
+        }
+        .onChange(of: store.groups) { groups in
+            // Auto-expand any newly added group
+            for group in groups where !expandedGroups.contains(group.id) {
+                expandedGroups.insert(group.id)
+            }
+        }
         .onChange(of: scenePhase) { phase in
             if phase != .active { privateUnlocked = false }
         }
