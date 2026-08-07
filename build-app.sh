@@ -6,23 +6,39 @@ APP_BUNDLE="${APP_NAME}.app"
 BUILD_NUMBER=${BUILD_NUMBER:-0}
 
 # ---------------------------------------------------------------------------
-# Compile — use xcodebuild so incremental builds share Xcode's DerivedData
-# cache. After the first build this is as fast as Cmd+B in Xcode.
+# Compile — use xcodebuild locally (incremental via DerivedData) and swiftc
+# on CI (no cache benefit, simpler invocation).
 # ---------------------------------------------------------------------------
 echo "Building ${APP_NAME} (build ${BUILD_NUMBER})..."
-xcodebuild \
-    -scheme MediaVault \
-    -configuration Debug \
-    -destination "platform=macOS,arch=arm64" \
-    -derivedDataPath .build/xcode-derived \
-    build \
-    2>&1 | grep -E "^(error:|warning:|Build succeeded|FAILED|CompileSwift)" || true
 
-# Locate the compiled binary inside DerivedData
-BINARY=$(find .build/xcode-derived/Build/Products -name "$APP_NAME" -type f | head -1)
-if [ -z "$BINARY" ]; then
-    echo "ERROR: compiled binary not found — did the build succeed?"
-    exit 1
+if [ "${CI}" = "true" ]; then
+    SDK=$(xcrun --show-sdk-path)
+    SOURCES=$(find Sources/MediaVault -name "*.swift" | sort | tr '\n' ' ')
+    mkdir -p .build
+    eval swiftc \
+        -sdk "$SDK" \
+        -target arm64-apple-macosx13.0 \
+        -parse-as-library \
+        -framework SwiftUI \
+        -framework AppKit \
+        -framework Foundation \
+        -framework LocalAuthentication \
+        -o .build/mediavault-binary \
+        $SOURCES
+    BINARY=".build/mediavault-binary"
+else
+    xcodebuild \
+        -scheme MediaVault \
+        -configuration Debug \
+        -destination "platform=macOS,arch=arm64" \
+        -derivedDataPath .build/xcode-derived \
+        build \
+        2>&1 | grep -E "^(error:|warning:|Build succeeded|FAILED|CompileSwift)" || true
+    BINARY=$(find .build/xcode-derived/Build/Products -name "$APP_NAME" -type f | head -1)
+    if [ -z "$BINARY" ]; then
+        echo "ERROR: compiled binary not found — did the build succeed?"
+        exit 1
+    fi
 fi
 
 # ---------------------------------------------------------------------------
