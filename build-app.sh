@@ -3,45 +3,36 @@ set -eo pipefail
 
 APP_NAME="MediaVault"
 APP_BUNDLE="${APP_NAME}.app"
-BUILD_OUT=".build/mediavault-binary"
+BUILD_NUMBER=${BUILD_NUMBER:-0}
 
-SDK=$(xcrun --show-sdk-path)
-SOURCES=$(find Sources/MediaVault -name "*.swift" | sort | tr '\n' ' ')
+# ---------------------------------------------------------------------------
+# Compile — use xcodebuild so incremental builds share Xcode's DerivedData
+# cache. After the first build this is as fast as Cmd+B in Xcode.
+# ---------------------------------------------------------------------------
+echo "Building ${APP_NAME} (build ${BUILD_NUMBER})..."
+xcodebuild \
+    -scheme MediaVault \
+    -configuration Debug \
+    -derivedDataPath .build/xcode-derived \
+    build \
+    2>&1 | grep -E "^(error:|warning:|Build succeeded|FAILED|CompileSwift)" || true
 
-echo "Building ${APP_NAME}..."
-mkdir -p .build
-mkdir -p .build/module-cache
-
-# Clear module cache if compiler and SDK versions don't match (happens after Xcode updates)
-SWIFT_VER=$(swiftc --version 2>&1 | head -1)
-CACHE_VER_FILE=".build/module-cache/.swift-version"
-if [ -f "$CACHE_VER_FILE" ] && [ "$(cat "$CACHE_VER_FILE")" != "$SWIFT_VER" ]; then
-    echo "Swift version changed, clearing module cache..."
-    rm -rf .build/module-cache
-    mkdir -p .build/module-cache
+# Locate the compiled binary inside DerivedData
+BINARY=$(find .build/xcode-derived/Build/Products -name "$APP_NAME" -type f | head -1)
+if [ -z "$BINARY" ]; then
+    echo "ERROR: compiled binary not found — did the build succeed?"
+    exit 1
 fi
-echo "$SWIFT_VER" > "$CACHE_VER_FILE"
 
-swiftc \
-    -sdk "$SDK" \
-    -target arm64-apple-macosx13.0 \
-    -parse-as-library \
-    -module-cache-path .build/module-cache \
-    -framework SwiftUI \
-    -framework AppKit \
-    -framework Foundation \
-    -framework LocalAuthentication \
-    -o "$BUILD_OUT" \
-    $SOURCES
-
+# ---------------------------------------------------------------------------
+# Assemble the .app bundle
+# ---------------------------------------------------------------------------
 echo "Assembling ${APP_BUNDLE}..."
 rm -rf "$APP_BUNDLE"
 mkdir -p "${APP_BUNDLE}/Contents/MacOS"
 mkdir -p "${APP_BUNDLE}/Contents/Resources"
 
-cp "$BUILD_OUT" "${APP_BUNDLE}/Contents/MacOS/${APP_NAME}"
-
-BUILD_NUMBER=${BUILD_NUMBER:-0}
+cp "$BINARY" "${APP_BUNDLE}/Contents/MacOS/${APP_NAME}"
 
 cat > "${APP_BUNDLE}/Contents/Info.plist" << 'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
