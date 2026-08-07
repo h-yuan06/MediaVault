@@ -166,19 +166,20 @@ struct ContentView: View {
                 Button("Sync Now") { engine.sync(source: source, store: store) }
 
                 Menu("Move to Group") {
-                    ForEach(store.groups) { group in
-                        Button(group.name) { store.moveSource(source, toGroup: group) }
+                    ForEach(store.groups.filter { !$0.isPrivate || privateUnlocked }) { group in
+                        Button(group.name) { moveSelected(source, toGroup: group) }
                     }
                     if store.group(for: source) != nil {
                         Divider()
-                        Button("Remove from Group") { store.moveSource(source, toGroup: nil) }
+                        Button("Remove from Group") { moveSelected(source, toGroup: nil) }
                     }
                     Divider()
                     Button("New Group…") {
-                        let g = SourceGroup(name: "New Group")
-                        store.addGroup(name: g.name)
-                        store.moveSource(source, toGroup: store.groups.last!)
-                        if let last = store.groups.last { beginRename(last) }
+                        store.addGroup(name: "New Group")
+                        if let last = store.groups.last {
+                            moveSelected(source, toGroup: last)
+                            beginRename(last)
+                        }
                     }
                 }
 
@@ -205,6 +206,17 @@ struct ContentView: View {
                 else { expandedGroups.remove(group.id) }
             }
         )
+    }
+
+    private func moveSelected(_ tappedSource: FollowedSource, toGroup group: SourceGroup?) {
+        let ids = selectedSourceIds.contains(tappedSource.id) && selectedSourceIds.count > 1
+            ? selectedSourceIds
+            : [tappedSource.id]
+        for id in ids {
+            if let source = store.sources.first(where: { $0.id == id }) {
+                store.moveSource(source, toGroup: group)
+            }
+        }
     }
 
     private func deleteSelected() {
