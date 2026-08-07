@@ -27,18 +27,17 @@ struct ContentView: View {
                     .animation(.linear, value: progress)
             }
             Group {
-            if store.downloadRootURL == nil {
-                folderPickerPrompt
-            } else if !tools.allAvailable {
-                toolsSetupView
-            } else {
-                mainLayout
+                if store.downloadRootURL == nil {
+                    folderPickerPrompt
+                } else if !tools.allAvailable {
+                    toolsSetupView
+                } else {
+                    mainLayout
+                }
             }
-        }
-        .onAppear {
-            Task { await tools.check() }
-        }
-            } // Group
+            .onAppear {
+                Task { await tools.check() }
+            }
         } // VStack
     }
 
