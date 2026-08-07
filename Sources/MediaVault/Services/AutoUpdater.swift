@@ -1,5 +1,8 @@
 import Foundation
 import AppKit
+import os.log
+
+private let log = Logger(subsystem: "com.mediavault.app", category: "AutoUpdater")
 
 @MainActor
 class AutoUpdater {
@@ -16,7 +19,11 @@ class AutoUpdater {
     }
 
     private func performUpdate() async {
-        guard let localBuild = localBuildNumber() else { return }
+        guard let localBuild = localBuildNumber() else {
+            log.warning("Could not read local build number")
+            return
+        }
+        log.info("Local build: \(localBuild) — checking for updates")
 
         do {
             var request = URLRequest(url: releasesURL)
@@ -26,18 +33,35 @@ class AutoUpdater {
             guard
                 let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
                 let tagName = json["tag_name"] as? String,
-                let remoteBuild = Int(tagName),
-                remoteBuild > localBuild,
+                let remoteBuild = Int(tagName)
+            else {
+                log.warning("Could not parse release JSON")
+                return
+            }
+
+            log.info("Remote build: \(remoteBuild)")
+
+            guard remoteBuild > localBuild else {
+                log.info("Already up to date")
+                return
+            }
+
+            guard
                 let assets = json["assets"] as? [[String: Any]],
                 let asset = assets.first(where: { ($0["name"] as? String) == "MediaVault.zip" }),
                 let downloadString = asset["browser_download_url"] as? String,
                 let downloadURL = URL(string: downloadString)
-            else { return }
+            else {
+                log.error("Could not find MediaVault.zip asset in release")
+                return
+            }
 
+            log.info("Downloading update from \(downloadString)")
             let (tempZip, _) = try await URLSession.shared.download(from: downloadURL)
+            log.info("Download complete — installing")
             try installUpdate(from: tempZip)
         } catch {
-            // Silent — update is best-effort
+            log.error("Update failed: \(error.localizedDescription)")
         }
     }
 
@@ -81,6 +105,7 @@ class AutoUpdater {
         launcher.arguments = ["-c", "nohup bash '\(scriptPath)' > /dev/null 2>&1 &"]
         try launcher.run()
 
+        log.info("Relaunch script launched — quitting for update")
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
             NSApplication.shared.terminate(nil)
         }
