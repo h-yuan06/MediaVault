@@ -64,9 +64,13 @@ struct DuplicatesSheet: View {
             } else {
                 List {
                     ForEach(detector.groups) { group in
+                        let sorted = group.files.sorted {
+                            creationDate($0) < creationDate($1)
+                        }
                         Section {
-                            ForEach(group.files, id: \.self) { file in
-                                FileRow(url: file) {
+                            ForEach(sorted, id: \.self) { file in
+                                let isKeeper = file == sorted.first
+                                FileRow(url: file, isKeeper: isKeeper) {
                                     detector.delete(file)
                                 }
                             }
@@ -81,10 +85,15 @@ struct DuplicatesSheet: View {
         }
         .frame(width: 560, height: 480)
     }
+
+    private func creationDate(_ url: URL) -> Date {
+        (try? FileManager.default.attributesOfItem(atPath: url.path)[.creationDate] as? Date) ?? .distantFuture
+    }
 }
 
 private struct FileRow: View {
     let url: URL
+    let isKeeper: Bool
     let onDelete: () -> Void
     @State private var isHovering = false
 
@@ -110,12 +119,21 @@ private struct FileRow: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            Button(role: .destructive, action: onDelete) {
-                Image(systemName: "trash")
+            if isKeeper {
+                Text("Keep")
+                    .font(.caption2.bold())
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(.green.opacity(0.15), in: Capsule())
+                    .foregroundStyle(.green)
+            } else {
+                Button(role: .destructive, action: onDelete) {
+                    Image(systemName: "trash")
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.red)
+                .help("Move to Trash")
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(.red)
-            .help("Move to Trash")
         }
         .padding(.vertical, 2)
         .contentShape(Rectangle())
