@@ -87,23 +87,18 @@ struct ContentView: View {
                             }
                             Text(group.name).font(.caption.bold())
                             Spacer()
-                            Menu {
-                                Button("Rename…") { beginRename(group) }
-                                if group.isPrivate {
-                                    Button("Remove Lock") { store.setPrivate(false, for: group) }
-                                } else {
-                                    Button("Make Private…") { store.setPrivate(true, for: group) }
-                                }
-                                Divider()
-                                Button("Delete Group", role: .destructive) {
-                                    store.removeGroup(group)
-                                }
-                            } label: {
-                                Image(systemName: "ellipsis")
-                                    .font(.caption)
+                        }
+                        .contextMenu {
+                            Button("Rename…") { beginRename(group) }
+                            if group.isPrivate {
+                                Button("Remove Lock") { store.setPrivate(false, for: group) }
+                            } else {
+                                Button("Make Private…") { store.setPrivate(true, for: group) }
                             }
-                            .menuStyle(.borderlessButton)
-                            .fixedSize()
+                            Divider()
+                            Button("Delete Group", role: .destructive) {
+                                store.removeGroup(group)
+                            }
                         }
                     }
                 }
