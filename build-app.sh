@@ -41,6 +41,8 @@ mkdir -p "${APP_BUNDLE}/Contents/Resources"
 
 cp "$BUILD_OUT" "${APP_BUNDLE}/Contents/MacOS/${APP_NAME}"
 
+BUILD_NUMBER=${BUILD_NUMBER:-0}
+
 cat > "${APP_BUNDLE}/Contents/Info.plist" << 'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -51,7 +53,7 @@ cat > "${APP_BUNDLE}/Contents/Info.plist" << 'PLIST'
     <key>CFBundleName</key>                <string>MediaVault</string>
     <key>CFBundlePackageType</key>         <string>APPL</string>
     <key>CFBundleShortVersionString</key>  <string>1.0</string>
-    <key>CFBundleVersion</key>             <string>1</string>
+    <key>CFBundleVersion</key>             <string>0</string>
     <key>LSMinimumSystemVersion</key>      <string>13.0</string>
     <key>NSPrincipalClass</key>            <string>NSApplication</string>
     <key>NSHighResolutionCapable</key>     <true/>
@@ -59,6 +61,8 @@ cat > "${APP_BUNDLE}/Contents/Info.plist" << 'PLIST'
 </dict>
 </plist>
 PLIST
+
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" "${APP_BUNDLE}/Contents/Info.plist"
 
 echo "Signing..."
 codesign --force --deep --sign - "$APP_BUNDLE"

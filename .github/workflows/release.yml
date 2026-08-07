@@ -1,0 +1,28 @@
+name: Build & Release
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: macos-15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: bash build-app.sh
+
+      - name: Zip app bundle
+        run: zip -r --symlinks MediaVault.zip MediaVault.app
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ github.run_number }}" MediaVault.zip \
+            --title "Build ${{ github.run_number }}" \
+            --notes "Automated build from commit ${{ github.sha }}"

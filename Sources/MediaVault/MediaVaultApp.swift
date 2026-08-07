@@ -15,6 +15,7 @@ struct MediaVaultApp: App {
                 .environmentObject(scheduler)
                 .environmentObject(tools)
                 .frame(minWidth: 800, minHeight: 520)
+                .onAppear { AutoUpdater.shared.checkAndInstall() }
         }
         .commands {
             CommandGroup(after: .newItem) {
