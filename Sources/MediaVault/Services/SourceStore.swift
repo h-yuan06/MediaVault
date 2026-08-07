@@ -114,8 +114,19 @@ class SourceStore: ObservableObject {
     }
 
     func archiveFile(for source: FollowedSource) -> URL? {
-        guard let root = downloadRootURL else { return nil }
-        return root.appendingPathComponent(source.archiveFileName)
+        guard let dir = downloadDir(for: source) else { return nil }
+        let archiveURL = dir.appendingPathComponent(source.archiveFileName)
+
+        // Migrate: if old archive exists in the root but not in the source folder, move it
+        if let root = downloadRootURL {
+            let oldURL = root.appendingPathComponent(source.archiveFileName)
+            if FileManager.default.fileExists(atPath: oldURL.path),
+               !FileManager.default.fileExists(atPath: archiveURL.path) {
+                try? FileManager.default.moveItem(at: oldURL, to: archiveURL)
+            }
+        }
+
+        return archiveURL
     }
 
     func downloadDir(for source: FollowedSource) -> URL? {
