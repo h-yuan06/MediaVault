@@ -7,7 +7,7 @@ struct ContentView: View {
     @EnvironmentObject var scheduler: Scheduler
     @EnvironmentObject var tools: ToolChecker
 
-    @State private var selectedSourceId: UUID?
+    @State private var selectedSourceIds: Set<UUID> = []
     @State private var showingAddSheet = false
     @State private var showingToolAlert = false
     @State private var renamingGroup: SourceGroup? = nil
@@ -37,11 +37,15 @@ struct ContentView: View {
             sidebar
                 .navigationSplitViewColumnWidth(min: 220, ideal: 260)
         } detail: {
-            if let id = selectedSourceId, let source = store.sources.first(where: { $0.id == id }) {
+            if selectedSourceIds.count == 1,
+               let id = selectedSourceIds.first,
+               let source = store.sources.first(where: { $0.id == id }) {
                 SourceDetailView(source: source)
                     .environmentObject(store)
                     .environmentObject(engine)
                     .environmentObject(tools)
+            } else if selectedSourceIds.count > 1 {
+                multiSelectionPlaceholder
             } else {
                 downloadQueueFallback
             }
@@ -50,7 +54,7 @@ struct ContentView: View {
 
     private var sidebar: some View {
         VStack(spacing: 0) {
-            List(selection: $selectedSourceId) {
+            List(selection: $selectedSourceIds) {
                 // Groups
                 ForEach(store.groups.filter { !$0.isPrivate || privateUnlocked }) { group in
                     Section {
@@ -103,6 +107,13 @@ struct ContentView: View {
                 }
             }
             .listStyle(.sidebar)
+            .onDeleteCommand(perform: deleteSelected)
+
+            // Hidden button captures ⌘⌫ when the list has focus
+            Button("") { deleteSelected() }
+                .keyboardShortcut(.delete, modifiers: .command)
+                .frame(width: 0, height: 0)
+                .opacity(0)
 
             Divider()
             sidebarToolbar
@@ -151,11 +162,44 @@ struct ContentView: View {
                 }
 
                 Divider()
-                Button("Remove", role: .destructive) {
-                    engine.cancelAll(for: source.id)
-                    store.remove(source)
+                Button(selectedSourceIds.contains(source.id) && selectedSourceIds.count > 1
+                       ? "Remove \(selectedSourceIds.count) Channels"
+                       : "Remove",
+                       role: .destructive) {
+                    if selectedSourceIds.contains(source.id) && selectedSourceIds.count > 1 {
+                        deleteSelected()
+                    } else {
+                        engine.cancelAll(for: source.id)
+                        store.remove(source)
+                    }
                 }
             }
+    }
+
+    private func deleteSelected() {
+        guard !selectedSourceIds.isEmpty else { return }
+        for id in selectedSourceIds {
+            if let source = store.sources.first(where: { $0.id == id }) {
+                engine.cancelAll(for: source.id)
+                store.remove(source)
+            }
+        }
+        selectedSourceIds = []
+    }
+
+    private var multiSelectionPlaceholder: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 40))
+                .foregroundStyle(.secondary)
+            Text("\(selectedSourceIds.count) channels selected")
+                .font(.title3)
+                .foregroundStyle(.secondary)
+            Text("Press ⌘⌫ to remove them")
+                .font(.callout)
+                .foregroundStyle(.tertiary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func beginRename(_ group: SourceGroup) {
