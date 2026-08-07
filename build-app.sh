@@ -13,6 +13,7 @@ echo "Building ${APP_NAME} (build ${BUILD_NUMBER})..."
 xcodebuild \
     -scheme MediaVault \
     -configuration Debug \
+    -destination "platform=macOS,arch=arm64" \
     -derivedDataPath .build/xcode-derived \
     build \
     2>&1 | grep -E "^(error:|warning:|Build succeeded|FAILED|CompileSwift)" || true
