@@ -34,7 +34,8 @@
 
   .layout { display: flex; flex: 1; overflow: hidden; }
 
-  .sidebar { width: var(--sidebar-w); background: var(--bg); border-right: 1px solid var(--border); overflow-y: auto; flex-shrink: 0; padding: 8px 0 48px; scrollbar-width: thin; scrollbar-color: var(--bg4) transparent; }
+  .sidebar { width: var(--sidebar-w); background: var(--bg); border-right: 1px solid var(--border); overflow-y: auto; flex-shrink: 0; padding: 8px 0 48px; scrollbar-width: thin; scrollbar-color: var(--bg4) transparent; transition: width 0.2s, opacity 0.2s; }
+  .sidebar.hidden { width: 0; opacity: 0; overflow: hidden; pointer-events: none; border: none; padding: 0; }
   .sidebar-section { padding: 4px 0; }
   .sidebar-section + .sidebar-section { border-top: 1px solid var(--border); margin-top: 4px; padding-top: 8px; }
   .sidebar-label { font-size: 10px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.1em; padding: 6px 14px 4px; }
@@ -133,6 +134,19 @@
   .filmstrip-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .filmstrip-thumb .liked-dot { position: absolute; bottom: 2px; right: 2px; width: 8px; height: 8px; background: #ef4444; border-radius: 50%; }
 
+  /* Album photo grid */
+  .album-grid-view { flex: 1; overflow-y: auto; padding: 16px 20px 32px; scrollbar-width: thin; scrollbar-color: var(--bg4) transparent; }
+  .album-photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 6px; }
+  .album-grid-cell { aspect-ratio: 1; border-radius: var(--radius-sm); overflow: hidden; cursor: pointer; position: relative; background: var(--bg3); }
+  .album-grid-cell img { width: 100%; height: 100%; object-fit: cover; display: block; transition: filter 0.15s; }
+  .album-grid-cell:hover img { filter: brightness(0.75); }
+  .album-grid-cell .liked-dot { position: absolute; bottom: 5px; right: 5px; width: 10px; height: 10px; background: #ef4444; border-radius: 50%; box-shadow: 0 1px 3px rgba(0,0,0,0.6); }
+  .album-grid-cell .cell-placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+
+  /* Lightbox layer sits on top of grid */
+  .album-lightbox { display: none; position: absolute; inset: 0; background: rgba(0,0,0,0.96); flex-direction: column; z-index: 10; }
+  .album-lightbox.open { display: flex; }
+
   #loading-view { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: 14px; color: var(--text3); font-size: 13px; }
   .spinner { width: 28px; height: 28px; border: 2px solid var(--bg4); border-top-color: var(--text3); border-radius: 50%; animation: spin 0.8s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
@@ -224,6 +238,10 @@
               <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M20 6h-8l-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2z"/></svg>
               Show in Finder
             </button>
+            <button class="action-pill" onclick="toggleFullscreen()">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" id="fullscreen-icon"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+              Fullscreen
+            </button>
           </div>
           <div class="player-desc">
             <div class="desc-stats" id="desc-stats"></div>
@@ -239,7 +257,8 @@
   </main>
 </div>
 
-<div id="album-view">
+<div id="album-view" style="position:fixed;inset:0;z-index:300;background:var(--bg);display:none;flex-direction:column;">
+  <!-- Grid header -->
   <div class="album-header">
     <button class="album-back" onclick="closeAlbum()">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
@@ -251,23 +270,39 @@
     </div>
     <button class="album-liked-toggle" id="album-liked-toggle" onclick="toggleAlbumLikedFilter()">♥ Liked only</button>
   </div>
-  <div class="album-main">
-    <div class="album-photo-actions">
-      <button class="photo-action-btn" id="photo-like-btn" onclick="togglePhotoLike()">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
-        Like
-      </button>
-      <button class="photo-action-btn" onclick="showInFinder(albumPhotos[albumPhotoIndex] && albumPhotos[albumPhotoIndex].path)">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M20 6h-8l-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2z"/></svg>
-        Finder
-      </button>
-    </div>
-    <div class="album-counter" id="album-counter"></div>
-    <button class="album-nav album-nav-prev" id="nav-prev" onclick="albumNav(-1)">‹</button>
-    <div id="album-photo-wrap" style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;padding:20px 80px;"></div>
-    <button class="album-nav album-nav-next" id="nav-next" onclick="albumNav(1)">›</button>
+
+  <!-- Photo grid -->
+  <div class="album-grid-view" id="album-grid-view">
+    <div class="album-photo-grid" id="album-photo-grid"></div>
   </div>
-  <div class="album-filmstrip" id="album-filmstrip"></div>
+
+  <!-- Lightbox (overlays the grid) -->
+  <div class="album-lightbox" id="album-lightbox">
+    <div class="album-header" style="background:rgba(0,0,0,0.85);border-color:rgba(255,255,255,0.08)">
+      <button class="album-back" onclick="closeLightbox()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+        All photos
+      </button>
+      <div class="album-header-title" id="lightbox-title"></div>
+    </div>
+    <div class="album-main">
+      <div class="album-photo-actions">
+        <button class="photo-action-btn" id="photo-like-btn" onclick="togglePhotoLike()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+          Like
+        </button>
+        <button class="photo-action-btn" onclick="showInFinder(albumPhotos[albumPhotoIndex] && albumPhotos[albumPhotoIndex].path)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M20 6h-8l-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2z"/></svg>
+          Finder
+        </button>
+      </div>
+      <div class="album-counter" id="album-counter"></div>
+      <button class="album-nav album-nav-prev" id="nav-prev" onclick="albumNav(-1)">‹</button>
+      <div id="album-photo-wrap" style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;padding:20px 80px;"></div>
+      <button class="album-nav album-nav-next" id="nav-next" onclick="albumNav(1)">›</button>
+    </div>
+    <div class="album-filmstrip" id="album-filmstrip"></div>
+  </div>
 </div>
 
 <button class="private-toggle" onclick="togglePrivateMode()" title="Private mode">
@@ -309,7 +344,16 @@ function fmtDuration(secs) {
   return `${m}:${String(s).padStart(2,'0')}`;
 }
 function fileURL(path) {
-  return "file://" + encodeURI(path).replace(/#/g, "%23");
+  return "file://" + encodeURI(path)
+    .replace(/#/g,  "%23")
+    .replace(/\?/g, "%3F")
+    .replace(/&/g,  "%26")
+    .replace(/'/g,  "%27")
+    .replace(/\(/g, "%28")
+    .replace(/\)/g, "%29")
+    .replace(/\+/g, "%2B")
+    .replace(/,/g,  "%2C")
+    .replace(/!/g,  "%21");
 }
 function escHtml(s) {
   return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
@@ -331,6 +375,7 @@ function isItemLiked(i) { return i.type === "album" ? albumHasLike(i) : isLiked(
 const PAGE_SIZE = 48;
 let currentList = [], renderedCount = 0;
 let thumbObserver = null, sentinelObserver = null;
+const thumbCache = new Map(); // path → data URL
 
 function resetGrid() {
   if (thumbObserver)    { thumbObserver.disconnect();    thumbObserver = null; }
@@ -438,9 +483,11 @@ function snapThumb(placeholder) {
       c.width = vid.videoWidth || 480;
       c.height = vid.videoHeight || 270;
       c.getContext("2d").drawImage(vid, 0, 0);
+      const dataURL = c.toDataURL("image/jpeg", 0.82);
+      thumbCache.set(src, dataURL);
       const img = document.createElement("img");
       img.className = "card-thumb";
-      img.src = c.toDataURL("image/jpeg", 0.82);
+      img.src = dataURL;
       placeholder.replaceWith(img);
     } catch(e) { /* cross-origin or decode error — leave placeholder */ }
     vid.remove();
@@ -488,14 +535,18 @@ function stopPreview(wrapper) {
 function videoCardHTML(v) {
   const liked = isLiked(v.path);
   const safe  = v.path.replace(/\\/g,"\\\\").replace(/'/g,"\\'");
-  // Use sidecar thumbnail if yt-dlp downloaded one; otherwise lazy-snap
+  // Use sidecar thumbnail, cached canvas capture, or lazy-snap placeholder
+  const vURL = fileURL(v.path);
+  const cached = thumbCache.get(vURL);
   const thumbContent = v.thumbnailPath
     ? `<img class="card-thumb" src="${fileURL(v.thumbnailPath)}" loading="lazy">`
-    : `<div class="thumb-placeholder snap-pending"
-          style="background:linear-gradient(135deg,${v.color}28,${v.color}50)"
-          data-src="${fileURL(v.path)}">
-         <svg width="44" height="44" viewBox="0 0 24 24" fill="${v.color}" opacity="0.5"><path d="M8 5v14l11-7z"/></svg>
-       </div>`;
+    : cached
+      ? `<img class="card-thumb" src="${cached}">`
+      : `<div class="thumb-placeholder snap-pending"
+            style="background:linear-gradient(135deg,${v.color}28,${v.color}50)"
+            data-src="${vURL}">
+           <svg width="44" height="44" viewBox="0 0 24 24" fill="${v.color}" opacity="0.5"><path d="M8 5v14l11-7z"/></svg>
+         </div>`;
   return `<div class="video-card" onclick="playVideo('${v.id}')">
     <div class="thumb-wrapper"
          onmouseenter="startPreview(this,'${safe}')"
@@ -548,8 +599,15 @@ function albumCardHTML(a) {
 }
 
 // ── Sort / filter ──────────────────────────────────────────────────
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
 function applySort(list) {
-  if (!currentSort) return [...list];
+  if (!currentSort) return shuffle([...list]);
   const arr = [...list];
   switch (currentSort) {
     case "latest":   return arr.sort((a,b) => b.downloadedAt - a.downloadedAt);
@@ -619,6 +677,7 @@ function playVideo(id) {
   currentVideo = v;
   document.getElementById("home-view").style.display = "none";
   document.getElementById("player-view").style.display = "block";
+  hideSidebar();
 
   const vid = document.getElementById("main-video");
   vid.src = fileURL(v.path);
@@ -675,34 +734,66 @@ function toggleVideoLike() {
   if (likedFilterOn) renderGrid(filteredItems());
 }
 
-// ── Album lightbox ─────────────────────────────────────────────────
+// ── Album grid + lightbox ──────────────────────────────────────────
 function openAlbum(id) {
   const a = items.find(x => x.id === id);
   if (!a) return;
   currentAlbum = a; albumLikedOnly = false;
+  albumPhotos = a.photos || [];
   document.getElementById("album-liked-toggle").classList.remove("active");
   document.getElementById("album-title").textContent = a.title;
-  document.getElementById("album-meta").textContent = `${a.channel} · ${(a.photos||[]).length} photos · ${relativeDate(a.downloadedAt)}`;
-  setAlbumPhotos(a.photos || [], 0);
-  document.getElementById("album-view").classList.add("open");
-  document.addEventListener("keydown", albumKeyHandler);
+  document.getElementById("album-meta").textContent = `${a.channel} · ${albumPhotos.length} photos · ${relativeDate(a.downloadedAt)}`;
+  renderAlbumGrid();
+  document.getElementById("album-view").style.display = "flex";
+  hideSidebar();
+  document.addEventListener("keydown", albumGridKeyHandler);
 }
 function closeAlbum() {
-  document.getElementById("album-view").classList.remove("open");
-  document.removeEventListener("keydown", albumKeyHandler);
+  document.getElementById("album-view").style.display = "none";
+  document.removeEventListener("keydown", albumGridKeyHandler);
+  document.removeEventListener("keydown", albumLightboxKeyHandler);
   currentAlbum = null;
+  showSidebar();
   renderGrid(filteredItems());
 }
-function albumKeyHandler(e) {
-  if (e.key === "ArrowLeft") albumNav(-1);
-  if (e.key === "ArrowRight") albumNav(1);
+function renderAlbumGrid() {
+  const photos = albumLikedOnly ? albumPhotos.filter(p => isLiked(p.path)) : albumPhotos;
+  document.getElementById("album-photo-grid").innerHTML = photos.map((p, i) => {
+    const ri = albumPhotos.indexOf(p);
+    return `<div class="album-grid-cell" onclick="openLightbox(${ri})">
+      ${p.path
+        ? `<img src="${fileURL(p.path)}" loading="lazy">`
+        : `<div class="cell-placeholder" style="background:linear-gradient(135deg,${currentAlbum?.color||'#333'}28,${currentAlbum?.color||'#333'}55)">
+             <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" opacity="0.3"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
+           </div>`}
+      ${isLiked(p.path) ? '<div class="liked-dot"></div>' : ""}
+    </div>`;
+  }).join("");
+}
+function albumGridKeyHandler(e) {
   if (e.key === "Escape") closeAlbum();
 }
-function setAlbumPhotos(photos, idx) {
-  albumPhotos = photos;
-  albumPhotoIndex = Math.max(0, Math.min(idx, photos.length - 1));
+
+function openLightbox(idx) {
+  albumPhotoIndex = Math.max(0, Math.min(idx, albumPhotos.length - 1));
+  document.getElementById("lightbox-title").textContent = currentAlbum?.title || "";
   renderAlbumPhoto(); renderFilmstrip();
+  document.getElementById("album-lightbox").classList.add("open");
+  document.removeEventListener("keydown", albumGridKeyHandler);
+  document.addEventListener("keydown", albumLightboxKeyHandler);
 }
+function closeLightbox() {
+  document.getElementById("album-lightbox").classList.remove("open");
+  document.removeEventListener("keydown", albumLightboxKeyHandler);
+  document.addEventListener("keydown", albumGridKeyHandler);
+  renderAlbumGrid(); // refresh liked dots if changed
+}
+function albumLightboxKeyHandler(e) {
+  if (e.key === "ArrowLeft")  albumNav(-1);
+  if (e.key === "ArrowRight") albumNav(1);
+  if (e.key === "Escape")     closeLightbox();
+}
+
 function albumNav(dir) {
   const n = albumPhotoIndex + dir;
   if (n < 0 || n >= albumPhotos.length) return;
@@ -752,10 +843,32 @@ function toggleAlbumLikedFilter() {
   if (albumLikedOnly) {
     const lp = albumPhotos.filter(p => isLiked(p.path));
     if (!lp.length) { albumLikedOnly = false; document.getElementById("album-liked-toggle").classList.remove("active"); return; }
-    if (!isLiked(albumPhotos[albumPhotoIndex]?.path)) { albumPhotoIndex = albumPhotos.indexOf(lp[0]); renderAlbumPhoto(); }
   }
-  renderFilmstrip();
+  renderAlbumGrid();
 }
+
+// ── Sidebar visibility ─────────────────────────────────────────────
+function hideSidebar() { document.getElementById("sidebar").classList.add("hidden"); }
+function showSidebar() { document.getElementById("sidebar").classList.remove("hidden"); }
+
+// ── Fullscreen ─────────────────────────────────────────────────────
+function toggleFullscreen() {
+  const wrap = document.querySelector(".player-video-wrap");
+  if (!document.fullscreenElement) {
+    wrap.requestFullscreen && wrap.requestFullscreen();
+  } else {
+    document.exitFullscreen && document.exitFullscreen();
+  }
+}
+document.addEventListener("fullscreenchange", () => {
+  const icon = document.getElementById("fullscreen-icon");
+  if (!icon) return;
+  if (document.fullscreenElement) {
+    icon.innerHTML = '<path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/>';
+  } else {
+    icon.innerHTML = '<path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>';
+  }
+});
 
 // ── Navigation ─────────────────────────────────────────────────────
 function goHome() {
@@ -766,6 +879,7 @@ function goHome() {
   vid.pause(); vid.src = "";
   document.getElementById("search-input").value = "";
   currentVideo = null;
+  showSidebar();
   buildChannelList(); renderGrid(filteredItems());
   setActive(document.getElementById("home-btn"));
 }
@@ -776,6 +890,7 @@ function filterChannel(channelId, el) {
   const vid = document.getElementById("main-video");
   vid.pause(); vid.src = "";
   currentVideo = null;
+  showSidebar();
   renderGrid(filteredItems()); setActive(el);
 }
 function handleSearch(q) {
@@ -798,6 +913,7 @@ function enterPrivateMode() {
   activeChannel = "all"; currentVideo = null;
   document.getElementById("player-view").style.display = "none";
   document.getElementById("home-view").style.display = "block";
+  showSidebar();
   buildChannelList(); renderGrid(filteredItems());
   setActive(document.getElementById("home-btn"));
 }
@@ -810,6 +926,7 @@ function exitPrivateMode() {
   document.getElementById("player-view").style.display = "none";
   document.getElementById("home-view").style.display = "block";
   document.getElementById("search-input").value = "";
+  showSidebar();
   buildChannelList(); renderGrid(filteredItems());
   setActive(document.getElementById("home-btn"));
 }
