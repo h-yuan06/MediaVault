@@ -51,6 +51,11 @@ mkdir -p "${APP_BUNDLE}/Contents/Resources"
 
 cp "$BINARY" "${APP_BUNDLE}/Contents/MacOS/${APP_NAME}"
 
+# Copy bundled resources (player.html, etc.)
+if [ -d "Sources/MediaVault/Resources" ]; then
+    cp -r Sources/MediaVault/Resources/. "${APP_BUNDLE}/Contents/Resources/"
+fi
+
 cat > "${APP_BUNDLE}/Contents/Info.plist" << 'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
