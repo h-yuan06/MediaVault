@@ -20,7 +20,15 @@ final class PlayerCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
     }
 
     private func loadLibrary(into webView: WKWebView) async {
-        let scan = VideoScanner.scan(store: store)
+        // Collect store info on main actor first, then scan off-thread
+        let entries: [(source: FollowedSource, dir: URL, isPrivate: Bool)] = store.sources.compactMap { source in
+            guard let dir = store.downloadDir(for: source) else { return nil }
+            let isPrivate = store.group(for: source)?.isPrivate ?? false
+            return (source, dir, isPrivate)
+        }
+        let scan = await Task.detached(priority: .userInitiated) {
+            VideoScanner.scan(sources: entries)
+        }.value
         let payload: [String: [MediaItem]] = ["public": scan.public, "private": scan.private]
         guard let data = try? JSONEncoder().encode(payload),
               let json = String(data: data, encoding: .utf8) else { return }

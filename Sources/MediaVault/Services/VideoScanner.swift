@@ -26,7 +26,6 @@ enum VideoScanner {
     private static let videoExts: Set<String> = ["mp4","mkv","webm","mov","m4v","avi"]
     private static let imageExts: Set<String> = ["jpg","jpeg","png","gif","webp","heic"]
 
-    // Deterministic channel color from a UUID string
     private static let palette: [String] = [
         "#c0392b","#1a5276","#117a65","#6c3483","#1e8bc3",
         "#d68910","#7d6608","#1a6b4a","#2874a6","#922b21"
@@ -37,113 +36,115 @@ enum VideoScanner {
         return palette[abs(hash) % palette.count]
     }
 
-    @MainActor
-    static func scan(store: SourceStore) -> (public: [MediaItem], private: [MediaItem]) {
+    // Runs off the main thread — caller wraps in Task.detached
+    static func scan(
+        sources: [(source: FollowedSource, dir: URL, isPrivate: Bool)]
+    ) -> (public: [MediaItem], private: [MediaItem]) {
         var pub: [MediaItem] = []
         var priv: [MediaItem] = []
 
-        for source in store.sources {
-            guard let dir = store.downloadDir(for: source) else { continue }
-            let isPrivate = store.group(for: source)?.isPrivate ?? false
-            let ch = source.name
-            let chId = source.id.uuidString
-            let chColor = color(for: chId)
-            let items = scanDirectory(dir, channel: ch, channelId: chId, color: chColor, isPrivate: isPrivate)
-            if isPrivate { priv.append(contentsOf: items) }
-            else         { pub.append(contentsOf: items) }
+        for entry in sources {
+            let items = scanDirectory(entry.dir,
+                                      channel: entry.source.name,
+                                      channelId: entry.source.id.uuidString,
+                                      color: color(for: entry.source.id.uuidString),
+                                      isPrivate: entry.isPrivate)
+            if entry.isPrivate { priv.append(contentsOf: items) }
+            else               { pub.append(contentsOf: items) }
         }
         return (pub, priv)
     }
 
     private static func scanDirectory(
-        _ dir: URL,
+        _ root: URL,
         channel: String,
         channelId: String,
         color: String,
         isPrivate: Bool
     ) -> [MediaItem] {
         let fm = FileManager.default
-        guard let contents = try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.fileSizeKey, .creationDateKey, .isDirectoryKey], options: [.skipsHiddenFiles]) else { return [] }
+        let keys: [URLResourceKey] = [.fileSizeKey, .creationDateKey, .isDirectoryKey, .isRegularFileKey]
+        guard let enumerator = fm.enumerator(
+            at: root,
+            includingPropertiesForKeys: keys,
+            options: [.skipsHiddenFiles]
+        ) else { return [] }
+
+        // Collect all files, grouped by parent dir for album detection
+        var videoFiles: [URL] = []
+        var imagesByDir: [URL: [URL]] = [:]
+
+        for case let url as URL in enumerator {
+            guard let rv = try? url.resourceValues(forKeys: Set(keys)),
+                  rv.isRegularFile == true else { continue }
+            let ext = url.pathExtension.lowercased()
+            if videoExts.contains(ext) {
+                videoFiles.append(url)
+            } else if imageExts.contains(ext) {
+                let dir = url.deletingLastPathComponent()
+                imagesByDir[dir, default: []].append(url)
+            }
+        }
 
         var items: [MediaItem] = []
 
-        for url in contents {
-            let ext = url.pathExtension.lowercased()
-            var isDir: ObjCBool = false
-            fm.fileExists(atPath: url.path, isDirectory: &isDir)
-
-            if isDir.boolValue {
-                // Check if it's an image album
-                if let photos = albumPhotos(in: url), !photos.isEmpty {
-                    let attrs = try? fm.attributesOfItem(atPath: url.path)
-                    let totalSize = photos.reduce(Int64(0)) { $0 + $1.fileSize }
-                    let createdAt = (attrs?[.creationDate] as? Date)?.timeIntervalSince1970 ?? Date().timeIntervalSince1970
-                    let liked = LikeStore.isLiked(url)
-                    let item = MediaItem(
-                        type: "album",
-                        id: deterministicID(for: url),
-                        title: cleanTitle(url.lastPathComponent),
-                        channel: channel,
-                        channelId: channelId,
-                        fileSize: totalSize,
-                        downloadedAt: createdAt,
-                        path: url.path + "/",
-                        color: color,
-                        isPrivate: isPrivate,
-                        liked: liked,
-                        photos: photos.map { p in
-                            let pAttrs = try? fm.attributesOfItem(atPath: p.url.path)
-                            let pCreated = (pAttrs?[.creationDate] as? Date)?.timeIntervalSince1970 ?? createdAt
-                            return PhotoItem(
-                                id: deterministicID(for: p.url),
-                                path: p.url.path,
-                                downloadedAt: pCreated,
-                                liked: LikeStore.isLiked(p.url)
-                            )
-                        }
-                    )
-                    items.append(item)
-                }
-            } else if videoExts.contains(ext) {
-                let attrs = try? fm.attributesOfItem(atPath: url.path)
-                let size = (attrs?[.size] as? Int64) ?? 0
-                let createdAt = (attrs?[.creationDate] as? Date)?.timeIntervalSince1970 ?? Date().timeIntervalSince1970
-                let item = MediaItem(
-                    type: "video",
-                    id: deterministicID(for: url),
-                    title: cleanTitle(url.deletingPathExtension().lastPathComponent),
-                    channel: channel,
-                    channelId: channelId,
-                    fileSize: size,
-                    downloadedAt: createdAt,
-                    path: url.path,
-                    color: color,
-                    isPrivate: isPrivate,
-                    liked: LikeStore.isLiked(url)
-                )
-                items.append(item)
-            }
+        // Videos
+        for url in videoFiles {
+            let attrs = try? fm.attributesOfItem(atPath: url.path)
+            let size = (attrs?[.size] as? Int64) ?? 0
+            let createdAt = (attrs?[.creationDate] as? Date)?.timeIntervalSince1970 ?? 0
+            items.append(MediaItem(
+                type: "video",
+                id: deterministicID(for: url),
+                title: cleanTitle(url.deletingPathExtension().lastPathComponent),
+                channel: channel,
+                channelId: channelId,
+                fileSize: size,
+                downloadedAt: createdAt,
+                path: url.path,
+                color: color,
+                isPrivate: isPrivate,
+                liked: LikeStore.isLiked(url)
+            ))
         }
+
+        // Albums — one item per directory that contains images
+        for (dir, images) in imagesByDir {
+            let sorted = images.sorted { $0.lastPathComponent < $1.lastPathComponent }
+            let totalSize = sorted.reduce(Int64(0)) { sum, u in
+                sum + ((try? fm.attributesOfItem(atPath: u.path)[.size] as? Int64) ?? 0)
+            }
+            let dirAttrs = try? fm.attributesOfItem(atPath: dir.path)
+            let createdAt = (dirAttrs?[.creationDate] as? Date)?.timeIntervalSince1970 ?? 0
+            let photos = sorted.map { u -> PhotoItem in
+                let pAttrs = try? fm.attributesOfItem(atPath: u.path)
+                let pCreated = (pAttrs?[.creationDate] as? Date)?.timeIntervalSince1970 ?? createdAt
+                return PhotoItem(
+                    id: deterministicID(for: u),
+                    path: u.path,
+                    downloadedAt: pCreated,
+                    liked: LikeStore.isLiked(u)
+                )
+            }
+            items.append(MediaItem(
+                type: "album",
+                id: deterministicID(for: dir),
+                title: cleanTitle(dir.lastPathComponent),
+                channel: channel,
+                channelId: channelId,
+                fileSize: totalSize,
+                downloadedAt: createdAt,
+                path: dir.path + "/",
+                color: color,
+                isPrivate: isPrivate,
+                liked: LikeStore.isLiked(dir),
+                photos: photos
+            ))
+        }
+
         return items
     }
 
-    private struct PhotoEntry {
-        let url: URL
-        let fileSize: Int64
-    }
-
-    private static func albumPhotos(in dir: URL) -> [PhotoEntry]? {
-        let fm = FileManager.default
-        guard let contents = try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.fileSizeKey], options: [.skipsHiddenFiles]) else { return nil }
-        let photos = contents.filter { imageExts.contains($0.pathExtension.lowercased()) }.sorted { $0.lastPathComponent < $1.lastPathComponent }
-        guard !photos.isEmpty else { return nil }
-        return photos.map { url in
-            let sz = (try? fm.attributesOfItem(atPath: url.path)[.size] as? Int64) ?? 0
-            return PhotoEntry(url: url, fileSize: sz)
-        }
-    }
-
-    // Stable UUID-like ID from file path using simple hash
     private static func deterministicID(for url: URL) -> String {
         var hash = UInt64(14695981039346656037)
         for byte in url.path.utf8 {
@@ -155,7 +156,6 @@ enum VideoScanner {
     }
 
     private static func cleanTitle(_ raw: String) -> String {
-        // Strip yt-dlp ID suffix like [xXxXxXxXxXx]
         var s = raw
         if let range = s.range(of: #"\s*\[[A-Za-z0-9_\-]{6,12}\]$"#, options: .regularExpression) {
             s.removeSubrange(range)
