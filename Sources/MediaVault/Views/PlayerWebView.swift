@@ -27,7 +27,7 @@ final class PlayerCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
             return (source, dir, isPrivate)
         }
         let scan = await Task.detached(priority: .userInitiated) {
-            VideoScanner.scan(sources: entries)
+            await VideoScanner.scan(sources: entries)
         }.value
         let payload: [String: [MediaItem]] = ["public": scan.public, "private": scan.private]
         guard let data = try? JSONEncoder().encode(payload),

@@ -58,10 +58,11 @@
   #home-view { padding: 12px 20px 20px; }
   .video-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 18px 14px; margin-top: 14px; }
   .video-card { cursor: pointer; }
-  .video-card:hover .thumb-placeholder, .video-card:hover .thumb-wrapper img { filter: brightness(0.8); }
   .thumb-wrapper { position: relative; width: 100%; aspect-ratio: 16/9; border-radius: var(--radius); overflow: hidden; background: var(--bg3); margin-bottom: 9px; }
-  .thumb-wrapper img { width: 100%; height: 100%; object-fit: cover; display: block; transition: filter 0.15s; }
+  .thumb-wrapper img.card-thumb { width: 100%; height: 100%; object-fit: cover; display: block; transition: filter 0.15s; }
   .thumb-placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; transition: filter 0.15s; }
+  .thumb-wrapper .preview-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.25s; pointer-events: none; }
+  .video-card:hover .card-thumb, .video-card:hover .thumb-placeholder { filter: brightness(0.75); }
   .duration-badge { position: absolute; bottom: 5px; right: 5px; background: rgba(0,0,0,0.82); color: #fff; font-size: 11px; font-weight: 600; padding: 2px 5px; border-radius: 3px; }
   .liked-badge { position: absolute; top: 6px; right: 6px; color: #ef4444; font-size: 14px; line-height: 1; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.7)); }
 
@@ -283,9 +284,6 @@
 
 <script>
 // ── Native bridge ──────────────────────────────────────────────────
-// All communication to Swift goes through this. In WKWebView the real
-// window.webkit object is injected. Outside the app (browser testing),
-// calls are no-ops so the UI still renders with injected mock data.
 const native = {
   post(msg) {
     if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.native) {
@@ -312,6 +310,14 @@ function fmtSize(bytes) {
   if (bytes > 1e6) return (bytes/1e6).toFixed(0) + " MB";
   return (bytes/1e3).toFixed(0) + " KB";
 }
+function fmtDuration(secs) {
+  if (!secs || secs <= 0) return '';
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = Math.floor(secs % 60);
+  if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  return `${m}:${String(s).padStart(2,'0')}`;
+}
 function fileURL(path) {
   return "file://" + encodeURI(path).replace(/#/g, "%23");
 }
@@ -320,20 +326,17 @@ function fileURL(path) {
 let publicItems  = [];
 let privateItems = [];
 let isPrivate    = false;
-let items        = [];        // current active set
+let items        = [];
 let currentVideo = null;
 let activeChannel = "all";
 let currentSort   = "latest";
 let likedFilterOn = false;
-// Album state
 let currentAlbum    = null;
 let albumPhotos     = [];
 let albumPhotoIndex = 0;
 let albumLikedOnly  = false;
 
-// liked state: JS mirrors what xattr says; toggling updates both
-const likedPaths = new Set(); // keyed by file path
-
+const likedPaths = new Set();
 function isLiked(path) { return likedPaths.has(path); }
 function setLiked(path, val) {
   val ? likedPaths.add(path) : likedPaths.delete(path);
@@ -343,14 +346,9 @@ function albumHasLike(a) { return a.photos && a.photos.some(p => isLiked(p.path)
 function isItemLiked(i)  { return i.type === "album" ? albumHasLike(i) : isLiked(i.path); }
 
 // ── Called by Swift after scanning ────────────────────────────────
-// payload = { public: [...], private: [...] }
-// Each item: { type, id, title, channel, channelId, fileSize, downloadedAt, path, color, liked, photos? }
-// Each photo: { id, path, downloadedAt, liked }
 function loadLibrary(payload) {
   publicItems  = payload.public  || [];
   privateItems = payload.private || [];
-
-  // Seed liked paths from injected data
   function seedLiked(list) {
     list.forEach(i => {
       if (i.liked) likedPaths.add(i.path);
@@ -359,7 +357,6 @@ function loadLibrary(payload) {
   }
   seedLiked(publicItems);
   seedLiked(privateItems);
-
   items = isPrivate ? privateItems : publicItems;
   document.getElementById("loading-view").style.display = "none";
   document.getElementById("home-view").style.display = "block";
@@ -373,8 +370,8 @@ function applySort(list) {
   switch (currentSort) {
     case "latest":   return arr.sort((a,b) => b.downloadedAt - a.downloadedAt);
     case "oldest":   return arr.sort((a,b) => a.downloadedAt - b.downloadedAt);
-    case "largest":  return arr.sort((a,b) => b.fileSize - a.fileSize);
-    case "smallest": return arr.sort((a,b) => a.fileSize - b.fileSize);
+    case "largest":  return arr.sort((a,b) => (b.duration ?? 0) - (a.duration ?? 0));
+    case "smallest": return arr.sort((a,b) => (a.duration ?? Infinity) - (b.duration ?? Infinity));
     case "az":       return arr.sort((a,b) => a.title.localeCompare(b.title));
   }
   return arr;
@@ -421,17 +418,23 @@ function renderGrid(list) {
   grid.innerHTML = list.map(i => i.type === "album" ? albumCardHTML(i) : videoCardHTML(i)).join("");
 }
 
+function thumbHTML(v) {
+  if (v.thumbnailPath) {
+    return `<img class="card-thumb" src="${fileURL(v.thumbnailPath)}">`;
+  }
+  return `<video src="${fileURL(v.path)}" preload="metadata" style="width:100%;height:100%;object-fit:cover" onloadedmetadata="snapThumb(this)"></video>`;
+}
+
 function videoCardHTML(v) {
   const liked = isLiked(v.path);
-  const thumb = v.path
-    ? `<video src="${fileURL(v.path)}" preload="metadata" style="width:100%;height:100%;object-fit:cover" onloadedmetadata="snapThumb(this)"></video>`
-    : `<div class="thumb-placeholder" style="background:linear-gradient(135deg,${v.color}28,${v.color}50)">
-         <svg width="44" height="44" viewBox="0 0 24 24" fill="${v.color}" opacity="0.7"><path d="M8 5v14l11-7z"/></svg>
-       </div>`;
+  const dur = fmtDuration(v.duration);
+  const safePath = v.path.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
   return `<div class="video-card" onclick="playVideo('${v.id}')">
-    <div class="thumb-wrapper">
-      ${thumb}
-      <span class="duration-badge">${fmtSize(v.fileSize)}</span>
+    <div class="thumb-wrapper"
+         onmouseenter="startPreview(this,'${safePath}')"
+         onmouseleave="stopPreview(this)">
+      ${thumbHTML(v)}
+      ${dur ? `<span class="duration-badge">${dur}</span>` : ''}
       ${liked ? '<span class="liked-badge">♥</span>' : ''}
     </div>
     <div class="video-info">
@@ -477,19 +480,64 @@ function albumCardHTML(a) {
   </div>`;
 }
 
+// Canvas-capture thumbnail for videos without a sidecar image
 function snapThumb(videoEl) {
-  videoEl.currentTime = Math.min(2, videoEl.duration * 0.1);
+  const t = videoEl.duration * (0.05 + Math.random() * 0.4);
+  videoEl.currentTime = isFinite(t) && t > 0 ? t : 0;
   videoEl.addEventListener("seeked", function onSeeked() {
     videoEl.removeEventListener("seeked", onSeeked);
     const c = document.createElement("canvas");
     c.width = videoEl.videoWidth; c.height = videoEl.videoHeight;
     c.getContext("2d").drawImage(videoEl, 0, 0);
     const img = document.createElement("img");
+    img.className = "card-thumb";
     img.src = c.toDataURL();
-    img.style.cssText = "width:100%;height:100%;object-fit:cover;position:absolute;top:0;left:0";
+    img.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover";
     videoEl.parentNode.insertBefore(img, videoEl);
     videoEl.style.display = "none";
-  }, { once: true });
+  });
+}
+
+// ── Hover preview ──────────────────────────────────────────────────
+let _previewTimer = null;
+
+function startPreview(wrapper, path) {
+  _previewTimer = setTimeout(() => {
+    let vid = wrapper.querySelector('.preview-video');
+    if (!vid) {
+      vid = document.createElement('video');
+      vid.className = 'preview-video';
+      vid.muted = true;
+      vid.loop = true;
+      vid.playsInline = true;
+      wrapper.appendChild(vid);
+      vid.addEventListener('loadedmetadata', () => {
+        if (isFinite(vid.duration) && vid.duration > 0) {
+          vid.currentTime = vid.duration * (0.1 + Math.random() * 0.6);
+        }
+      });
+      vid.addEventListener('seeked', () => {
+        vid.play().then(() => { vid.style.opacity = '1'; }).catch(() => {});
+      }, { once: true });
+      vid.src = fileURL(path);
+      vid.load();
+    } else {
+      if (isFinite(vid.duration) && vid.duration > 0) {
+        vid.currentTime = vid.duration * (0.1 + Math.random() * 0.6);
+      } else {
+        vid.play().then(() => { vid.style.opacity = '1'; }).catch(() => {});
+      }
+    }
+  }, 350);
+}
+
+function stopPreview(wrapper) {
+  clearTimeout(_previewTimer);
+  const vid = wrapper.querySelector('.preview-video');
+  if (vid) {
+    vid.style.opacity = '0';
+    setTimeout(() => { try { vid.pause(); } catch(e){} }, 260);
+  }
 }
 
 // ── Video player ───────────────────────────────────────────────────
@@ -506,25 +554,27 @@ function playVideo(id) {
   const av = document.getElementById("player-avatar");
   av.textContent = v.channel[0]; av.style.background = v.color;
   document.getElementById("player-ch-name").textContent = v.channel;
-  document.getElementById("player-ch-meta").textContent = fmtSize(v.fileSize);
+  document.getElementById("player-ch-meta").textContent = fmtDuration(v.duration) || fmtSize(v.fileSize);
   document.getElementById("desc-stats").textContent = relativeDate(v.downloadedAt);
   document.getElementById("desc-text").textContent = "Downloaded via MediaVault";
   updateVideoLikeBtn();
 
   const others = applySort(items.filter(x => x.id !== v.id && x.type === "video")).slice(0, 12);
-  document.getElementById("up-next-list").innerHTML = others.map(o => `
-    <div class="up-next-card" onclick="playVideo('${o.id}')">
+  document.getElementById("up-next-list").innerHTML = others.map(o => {
+    const dur = fmtDuration(o.duration);
+    return `<div class="up-next-card" onclick="playVideo('${o.id}')">
       <div class="up-next-thumb">
-        ${o.path
-          ? `<video src="${fileURL(o.path)}" preload="metadata" style="width:100%;height:100%;object-fit:cover" onloadedmetadata="snapThumb(this)"></video>`
-          : `<div class="thumb-placeholder" style="background:linear-gradient(135deg,${o.color}28,${o.color}50);height:100%;display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="${o.color}" opacity="0.7"><path d="M8 5v14l11-7z"/></svg></div>`}
-        <span class="duration-badge" style="position:absolute;bottom:3px;right:3px">${fmtSize(o.fileSize)}</span>
+        ${o.thumbnailPath
+          ? `<img src="${fileURL(o.thumbnailPath)}" style="width:100%;height:100%;object-fit:cover">`
+          : `<video src="${fileURL(o.path)}" preload="metadata" style="width:100%;height:100%;object-fit:cover" onloadedmetadata="snapThumb(this)"></video>`}
+        ${dur ? `<span class="duration-badge" style="position:absolute;bottom:3px;right:3px">${dur}</span>` : ''}
       </div>
       <div class="up-next-info">
         <div class="up-next-title">${escHtml(o.title)}</div>
         <div class="up-next-channel">${escHtml(o.channel)}</div>
       </div>
-    </div>`).join("");
+    </div>`;
+  }).join("");
   document.querySelector(".main").scrollTo(0, 0);
 }
 
@@ -671,13 +721,8 @@ function showInFinder(path) {
 }
 
 // ── Private mode ───────────────────────────────────────────────────
-// enterPrivateMode() is called by Swift after successful Touch ID / password auth
 function togglePrivateMode() {
-  if (isPrivate) {
-    exitPrivateMode();
-  } else {
-    native.authenticate();
-  }
+  if (isPrivate) { exitPrivateMode(); } else { native.authenticate(); }
 }
 function enterPrivateMode() {
   isPrivate = true; items = privateItems;
@@ -700,6 +745,7 @@ function exitPrivateMode() {
   buildChannelList(); renderGrid(filteredItems());
   setActive(document.getElementById("home-btn"));
 }
+function authFailed() {}
 
 // ── Utilities ──────────────────────────────────────────────────────
 function escHtml(s) {

@@ -1,4 +1,5 @@
 import Foundation
+import AVFoundation
 
 struct MediaItem: Encodable {
     let type: String       // "video" | "album"
@@ -7,8 +8,10 @@ struct MediaItem: Encodable {
     let channel: String
     let channelId: String
     let fileSize: Int64
+    let duration: Double?  // seconds; nil for albums or unreadable files
     let downloadedAt: Double
     let path: String
+    let thumbnailPath: String?  // yt-dlp sidecar thumbnail if present
     let color: String
     let isPrivate: Bool
     let liked: Bool
@@ -25,6 +28,7 @@ struct PhotoItem: Encodable {
 enum VideoScanner {
     private static let videoExts: Set<String> = ["mp4","mkv","webm","mov","m4v","avi"]
     private static let imageExts: Set<String> = ["jpg","jpeg","png","gif","webp","heic"]
+    private static let thumbExts = ["jpg","jpeg","webp","png"]
 
     private static let palette: [String] = [
         "#c0392b","#1a5276","#117a65","#6c3483","#1e8bc3",
@@ -36,19 +40,19 @@ enum VideoScanner {
         return palette[abs(hash) % palette.count]
     }
 
-    // Runs off the main thread — caller wraps in Task.detached
     static func scan(
         sources: [(source: FollowedSource, dir: URL, isPrivate: Bool)]
-    ) -> (public: [MediaItem], private: [MediaItem]) {
+    ) async -> (public: [MediaItem], private: [MediaItem]) {
         var pub: [MediaItem] = []
         var priv: [MediaItem] = []
-
         for entry in sources {
-            let items = scanDirectory(entry.dir,
-                                      channel: entry.source.name,
-                                      channelId: entry.source.id.uuidString,
-                                      color: color(for: entry.source.id.uuidString),
-                                      isPrivate: entry.isPrivate)
+            let items = await scanDirectory(
+                entry.dir,
+                channel: entry.source.name,
+                channelId: entry.source.id.uuidString,
+                color: color(for: entry.source.id.uuidString),
+                isPrivate: entry.isPrivate
+            )
             if entry.isPrivate { priv.append(contentsOf: items) }
             else               { pub.append(contentsOf: items) }
         }
@@ -61,7 +65,7 @@ enum VideoScanner {
         channelId: String,
         color: String,
         isPrivate: Bool
-    ) -> [MediaItem] {
+    ) async -> [MediaItem] {
         let fm = FileManager.default
         let keys: [URLResourceKey] = [.fileSizeKey, .creationDateKey, .isDirectoryKey, .isRegularFileKey]
         guard let enumerator = fm.enumerator(
@@ -70,7 +74,6 @@ enum VideoScanner {
             options: [.skipsHiddenFiles]
         ) else { return [] }
 
-        // Collect all files, grouped by parent dir for album detection
         var videoFiles: [URL] = []
         var imagesByDir: [URL: [URL]] = [:]
 
@@ -88,11 +91,13 @@ enum VideoScanner {
 
         var items: [MediaItem] = []
 
-        // Videos
+        // Videos — load duration from container metadata
         for url in videoFiles {
             let attrs = try? fm.attributesOfItem(atPath: url.path)
             let size = (attrs?[.size] as? Int64) ?? 0
             let createdAt = (attrs?[.creationDate] as? Date)?.timeIntervalSince1970 ?? 0
+            let thumbPath = findThumbnail(for: url)
+            let duration = await loadDuration(url: url)
             items.append(MediaItem(
                 type: "video",
                 id: deterministicID(for: url),
@@ -100,15 +105,17 @@ enum VideoScanner {
                 channel: channel,
                 channelId: channelId,
                 fileSize: size,
+                duration: duration,
                 downloadedAt: createdAt,
                 path: url.path,
+                thumbnailPath: thumbPath,
                 color: color,
                 isPrivate: isPrivate,
                 liked: LikeStore.isLiked(url)
             ))
         }
 
-        // Albums — one item per directory that contains images
+        // Albums
         for (dir, images) in imagesByDir {
             let sorted = images.sorted { $0.lastPathComponent < $1.lastPathComponent }
             let totalSize = sorted.reduce(Int64(0)) { sum, u in
@@ -133,8 +140,10 @@ enum VideoScanner {
                 channel: channel,
                 channelId: channelId,
                 fileSize: totalSize,
+                duration: nil,
                 downloadedAt: createdAt,
                 path: dir.path + "/",
+                thumbnailPath: nil,
                 color: color,
                 isPrivate: isPrivate,
                 liked: LikeStore.isLiked(dir),
@@ -143,6 +152,26 @@ enum VideoScanner {
         }
 
         return items
+    }
+
+    // Look for a yt-dlp sidecar thumbnail alongside the video file
+    private static func findThumbnail(for videoURL: URL) -> String? {
+        let base = videoURL.deletingPathExtension()
+        for ext in thumbExts {
+            let candidate = base.appendingPathExtension(ext)
+            if FileManager.default.fileExists(atPath: candidate.path) {
+                return candidate.path
+            }
+        }
+        return nil
+    }
+
+    // Read duration from the container — fast header read, no decoding
+    private static func loadDuration(url: URL) async -> Double? {
+        let asset = AVURLAsset(url: url)
+        guard let cmDuration = try? await asset.load(.duration) else { return nil }
+        let secs = CMTimeGetSeconds(cmDuration)
+        return secs.isFinite && secs > 0 ? secs : nil
     }
 
     private static func deterministicID(for url: URL) -> String {
