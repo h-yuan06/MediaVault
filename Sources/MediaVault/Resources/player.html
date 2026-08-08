@@ -190,7 +190,7 @@
 
     <div id="home-view" style="display:none">
       <div class="sort-bar">
-        <button class="sort-chip active" onclick="setSort('latest', this)">Latest</button>
+        <button class="sort-chip" onclick="setSort('latest', this)">Latest</button>
         <button class="sort-chip" onclick="setSort('oldest', this)">Oldest</button>
         <button class="sort-chip" onclick="setSort('largest', this)">Longest</button>
         <button class="sort-chip" onclick="setSort('smallest', this)">Shortest</button>
@@ -318,7 +318,7 @@ function escHtml(s) {
 // ── State ──────────────────────────────────────────────────────────
 let publicItems = [], privateItems = [], items = [];
 let isPrivate = false, currentVideo = null;
-let activeChannel = "all", currentSort = "latest", likedFilterOn = false;
+let activeChannel = "all", currentSort = null, likedFilterOn = false;
 let currentAlbum = null, albumPhotos = [], albumPhotoIndex = 0, albumLikedOnly = false;
 const likedPaths = new Set();
 
@@ -549,6 +549,7 @@ function albumCardHTML(a) {
 
 // ── Sort / filter ──────────────────────────────────────────────────
 function applySort(list) {
+  if (!currentSort) return [...list];
   const arr = [...list];
   switch (currentSort) {
     case "latest":   return arr.sort((a,b) => b.downloadedAt - a.downloadedAt);
@@ -565,9 +566,14 @@ function filteredItems() {
   return applySort(base);
 }
 function setSort(key, el) {
-  currentSort = key;
-  document.querySelectorAll(".sort-chip:not(.liked-chip)").forEach(c => c.classList.remove("active"));
-  el.classList.add("active");
+  if (currentSort === key) {
+    currentSort = null;
+    el.classList.remove("active");
+  } else {
+    currentSort = key;
+    document.querySelectorAll(".sort-chip:not(.liked-chip)").forEach(c => c.classList.remove("active"));
+    el.classList.add("active");
+  }
   renderGrid(filteredItems());
 }
 function toggleLikedFilter(el) {

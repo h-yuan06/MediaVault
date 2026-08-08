@@ -214,6 +214,12 @@ class DownloadEngine: ObservableObject {
                 ? "\(source.name) — up to date"
                 : "\(source.name) — \(newDownloads) new file(s)"
             store.markChecked(source.id, downloadedCount: newDownloads, syncedToLatest: upToDate)
+            if newDownloads > 0 {
+                let ffmpegPath = tools.ffmpegPath
+                Task.detached(priority: .background) {
+                    await ThumbnailGenerator.generateMissing(in: downloadDir, ffmpegPath: ffmpegPath)
+                }
+            }
         } else if item.status != .failed {
             item.status = .failed
             item.errorMessage = errorLines.isEmpty
@@ -307,6 +313,7 @@ class DownloadEngine: ObservableObject {
             "--download-archive", archiveFile.path,
             "--output", downloadDir.path + "/%(uploader)s/%(title)s.%(ext)s",
             "--ffmpeg-location", tools.ffmpegPath,
+            "--write-thumbnail", "--convert-thumbnails", "jpg",
             "--ignore-no-formats-error",
             "--newline",
             source.url
