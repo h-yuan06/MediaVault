@@ -1,5 +1,4 @@
 import Foundation
-import AVFoundation
 
 struct MediaItem: Encodable {
     let type: String       // "video" | "album"
@@ -8,7 +7,6 @@ struct MediaItem: Encodable {
     let channel: String
     let channelId: String
     let fileSize: Int64
-    let duration: Double?  // seconds; nil for albums or unreadable files
     let downloadedAt: Double
     let path: String
     let thumbnailPath: String?  // yt-dlp sidecar thumbnail if present
@@ -40,13 +38,14 @@ enum VideoScanner {
         return palette[abs(hash) % palette.count]
     }
 
+    // Called from Task.detached — no main-actor access, no async I/O
     static func scan(
         sources: [(source: FollowedSource, dir: URL, isPrivate: Bool)]
-    ) async -> (public: [MediaItem], private: [MediaItem]) {
+    ) -> (public: [MediaItem], private: [MediaItem]) {
         var pub: [MediaItem] = []
         var priv: [MediaItem] = []
         for entry in sources {
-            let items = await scanDirectory(
+            let items = scanDirectory(
                 entry.dir,
                 channel: entry.source.name,
                 channelId: entry.source.id.uuidString,
@@ -65,7 +64,7 @@ enum VideoScanner {
         channelId: String,
         color: String,
         isPrivate: Bool
-    ) async -> [MediaItem] {
+    ) -> [MediaItem] {
         let fm = FileManager.default
         let keys: [URLResourceKey] = [.fileSizeKey, .creationDateKey, .isDirectoryKey, .isRegularFileKey]
         guard let enumerator = fm.enumerator(
@@ -91,13 +90,10 @@ enum VideoScanner {
 
         var items: [MediaItem] = []
 
-        // Videos — load duration from container metadata
         for url in videoFiles {
             let attrs = try? fm.attributesOfItem(atPath: url.path)
             let size = (attrs?[.size] as? Int64) ?? 0
             let createdAt = (attrs?[.creationDate] as? Date)?.timeIntervalSince1970 ?? 0
-            let thumbPath = findThumbnail(for: url)
-            let duration = await loadDuration(url: url)
             items.append(MediaItem(
                 type: "video",
                 id: deterministicID(for: url),
@@ -105,17 +101,15 @@ enum VideoScanner {
                 channel: channel,
                 channelId: channelId,
                 fileSize: size,
-                duration: duration,
                 downloadedAt: createdAt,
                 path: url.path,
-                thumbnailPath: thumbPath,
+                thumbnailPath: findThumbnail(for: url),
                 color: color,
                 isPrivate: isPrivate,
                 liked: LikeStore.isLiked(url)
             ))
         }
 
-        // Albums
         for (dir, images) in imagesByDir {
             let sorted = images.sorted { $0.lastPathComponent < $1.lastPathComponent }
             let totalSize = sorted.reduce(Int64(0)) { sum, u in
@@ -140,7 +134,6 @@ enum VideoScanner {
                 channel: channel,
                 channelId: channelId,
                 fileSize: totalSize,
-                duration: nil,
                 downloadedAt: createdAt,
                 path: dir.path + "/",
                 thumbnailPath: nil,
@@ -154,7 +147,6 @@ enum VideoScanner {
         return items
     }
 
-    // Look for a yt-dlp sidecar thumbnail alongside the video file
     private static func findThumbnail(for videoURL: URL) -> String? {
         let base = videoURL.deletingPathExtension()
         for ext in thumbExts {
@@ -164,14 +156,6 @@ enum VideoScanner {
             }
         }
         return nil
-    }
-
-    // Read duration from the container — fast header read, no decoding
-    private static func loadDuration(url: URL) async -> Double? {
-        let asset = AVURLAsset(url: url)
-        guard let cmDuration = try? await asset.load(.duration) else { return nil }
-        let secs = CMTimeGetSeconds(cmDuration)
-        return secs.isFinite && secs > 0 ? secs : nil
     }
 
     private static func deterministicID(for url: URL) -> String {

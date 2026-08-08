@@ -46,7 +46,6 @@
 
   .main { flex: 1; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--bg4) transparent; }
 
-  /* Sort bar */
   .sort-bar { display: flex; gap: 6px; padding: 14px 20px 0; flex-wrap: wrap; align-items: center; }
   .sort-chip { background: transparent; border: 1px solid var(--bg4); border-radius: 20px; color: var(--text2); font-size: 12px; font-weight: 500; padding: 5px 13px; cursor: pointer; transition: background 0.12s, color 0.12s, border-color 0.12s; white-space: nowrap; display: flex; align-items: center; gap: 5px; }
   .sort-chip:hover { border-color: var(--text3); color: var(--text); }
@@ -54,19 +53,18 @@
   .sort-chip.liked-chip.active { background: #b91c1c; border-color: #b91c1c; color: #fff; }
   .chip-divider { width: 1px; height: 18px; background: var(--border); margin: 0 2px; flex-shrink: 0; }
 
-  /* Grid */
   #home-view { padding: 12px 20px 20px; }
   .video-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 18px 14px; margin-top: 14px; }
   .video-card { cursor: pointer; }
   .thumb-wrapper { position: relative; width: 100%; aspect-ratio: 16/9; border-radius: var(--radius); overflow: hidden; background: var(--bg3); margin-bottom: 9px; }
-  .thumb-wrapper img.card-thumb { width: 100%; height: 100%; object-fit: cover; display: block; transition: filter 0.15s; }
+  .thumb-wrapper .card-thumb { width: 100%; height: 100%; object-fit: cover; display: block; transition: filter 0.15s; }
   .thumb-placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; transition: filter 0.15s; }
-  .thumb-wrapper .preview-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.25s; pointer-events: none; }
-  .video-card:hover .card-thumb, .video-card:hover .thumb-placeholder { filter: brightness(0.75); }
-  .duration-badge { position: absolute; bottom: 5px; right: 5px; background: rgba(0,0,0,0.82); color: #fff; font-size: 11px; font-weight: 600; padding: 2px 5px; border-radius: 3px; }
+  .video-card:hover .card-thumb,
+  .video-card:hover .thumb-placeholder { filter: brightness(0.75); }
+  .preview-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.25s; pointer-events: none; }
+  .duration-badge { position: absolute; bottom: 5px; right: 5px; background: rgba(0,0,0,0.82); color: #fff; font-size: 11px; font-weight: 600; padding: 2px 5px; border-radius: 3px; display: none; }
   .liked-badge { position: absolute; top: 6px; right: 6px; color: #ef4444; font-size: 14px; line-height: 1; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.7)); }
 
-  /* Album card */
   .album-thumb-wrap { position: relative; width: 100%; aspect-ratio: 16/9; margin-bottom: 9px; }
   .album-stack { position: relative; width: 100%; height: 100%; }
   .album-stack .stack-back2 { position: absolute; top: 0; left: 6px; right: -6px; bottom: -6px; border-radius: var(--radius); overflow: hidden; opacity: 0.4; }
@@ -81,7 +79,6 @@
   .video-channel { font-size: 11px; color: var(--text3); margin-bottom: 1px; }
   .video-stats { font-size: 11px; color: var(--text3); }
 
-  /* Player */
   #player-view { display: none; padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
   .player-layout { display: grid; grid-template-columns: 1fr 340px; gap: 24px; }
   @media (max-width: 860px) { .player-layout { grid-template-columns: 1fr; } .up-next { display: none; } }
@@ -103,12 +100,10 @@
   .up-next-card { display: flex; gap: 8px; cursor: pointer; border-radius: var(--radius-sm); padding: 4px; transition: background 0.1s; }
   .up-next-card:hover { background: var(--bg3); }
   .up-next-thumb { width: 116px; aspect-ratio: 16/9; border-radius: var(--radius-sm); overflow: hidden; flex-shrink: 0; background: var(--bg3); position: relative; }
-  .up-next-thumb .thumb-placeholder { height: 100%; }
   .up-next-info { flex: 1; min-width: 0; padding-top: 1px; }
   .up-next-title { font-size: 12px; font-weight: 600; line-height: 1.3; color: var(--text); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: 3px; }
   .up-next-channel { font-size: 11px; color: var(--text3); }
 
-  /* Album lightbox */
   #album-view { display: none; position: fixed; inset: 0; z-index: 300; background: rgba(0,0,0,0.96); flex-direction: column; }
   #album-view.open { display: flex; }
   .album-header { display: flex; align-items: center; gap: 12px; padding: 14px 20px; border-bottom: 1px solid var(--border); flex-shrink: 0; background: var(--bg); }
@@ -135,20 +130,18 @@
   .album-filmstrip { flex-shrink: 0; background: var(--bg2); border-top: 1px solid var(--border); padding: 10px 16px; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: thin; scrollbar-color: var(--bg4) transparent; }
   .filmstrip-thumb { width: 64px; height: 48px; border-radius: 5px; overflow: hidden; flex-shrink: 0; cursor: pointer; position: relative; border: 2px solid transparent; transition: border-color 0.12s; }
   .filmstrip-thumb.active { border-color: var(--text); }
-  .filmstrip-thumb .thumb-placeholder { height: 100%; border-radius: 3px; }
   .filmstrip-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .filmstrip-thumb .liked-dot { position: absolute; bottom: 2px; right: 2px; width: 8px; height: 8px; background: #ef4444; border-radius: 50%; }
 
-  /* Loading */
   #loading-view { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: 14px; color: var(--text3); font-size: 13px; }
   .spinner { width: 28px; height: 28px; border: 2px solid var(--bg4); border-top-color: var(--text3); border-radius: 50%; animation: spin 0.8s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  /* Empty state */
   .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 300px; gap: 10px; color: var(--text3); }
   .empty-state svg { opacity: 0.3; }
 
-  /* Private toggle */
+  .page-count { font-size: 11px; color: var(--text3); text-align: center; padding: 12px 0 4px; grid-column: 1/-1; }
+
   .private-toggle { position: fixed; bottom: 14px; left: 14px; background: var(--bg3); border: 1px solid var(--border); border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--text3); transition: opacity 0.15s, transform 0.15s; z-index: 200; opacity: 0.4; }
   .private-toggle:hover { opacity: 1; transform: scale(1.08); }
   body.private-mode .private-toggle { background: #3a1010; border-color: #5a1818; color: #ff8888; opacity: 0.75; }
@@ -189,7 +182,7 @@
     </div>
   </nav>
 
-  <main class="main">
+  <main class="main" id="main-scroll">
     <div id="loading-view">
       <div class="spinner"></div>
       Scanning library…
@@ -246,7 +239,6 @@
   </main>
 </div>
 
-<!-- Album lightbox -->
 <div id="album-view">
   <div class="album-header">
     <button class="album-back" onclick="closeAlbum()">
@@ -265,7 +257,7 @@
         <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
         Like
       </button>
-      <button class="photo-action-btn" id="photo-finder-btn" onclick="showInFinder(albumPhotos[albumPhotoIndex] && albumPhotos[albumPhotoIndex].path)">
+      <button class="photo-action-btn" onclick="showInFinder(albumPhotos[albumPhotoIndex] && albumPhotos[albumPhotoIndex].path)">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M20 6h-8l-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2z"/></svg>
         Finder
       </button>
@@ -283,12 +275,10 @@
 </button>
 
 <script>
-// ── Native bridge ──────────────────────────────────────────────────
 const native = {
   post(msg) {
-    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.native) {
+    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.native)
       window.webkit.messageHandlers.native.postMessage(msg);
-    }
   },
   showInFinder(path) { this.post({ action: "showInFinder", path }); },
   setLiked(path, liked) { this.post({ action: "setLiked", path, liked }); },
@@ -299,8 +289,8 @@ const native = {
 const NOW = Date.now() / 1000;
 function relativeDate(t) {
   const d = Math.round((NOW - t) / 86400);
-  if (d < 1)  return "Today";
-  if (d < 7)  return d + "d ago";
+  if (d < 1) return "Today";
+  if (d < 7) return d + "d ago";
   if (d < 30) return Math.round(d/7) + "w ago";
   if (d < 365) return Math.round(d/30) + "mo ago";
   return Math.round(d/365) + "y ago";
@@ -321,47 +311,240 @@ function fmtDuration(secs) {
 function fileURL(path) {
   return "file://" + encodeURI(path).replace(/#/g, "%23");
 }
+function escHtml(s) {
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
 
 // ── State ──────────────────────────────────────────────────────────
-let publicItems  = [];
-let privateItems = [];
-let isPrivate    = false;
-let items        = [];
-let currentVideo = null;
-let activeChannel = "all";
-let currentSort   = "latest";
-let likedFilterOn = false;
-let currentAlbum    = null;
-let albumPhotos     = [];
-let albumPhotoIndex = 0;
-let albumLikedOnly  = false;
-
+let publicItems = [], privateItems = [], items = [];
+let isPrivate = false, currentVideo = null;
+let activeChannel = "all", currentSort = "latest", likedFilterOn = false;
+let currentAlbum = null, albumPhotos = [], albumPhotoIndex = 0, albumLikedOnly = false;
 const likedPaths = new Set();
-function isLiked(path) { return likedPaths.has(path); }
-function setLiked(path, val) {
-  val ? likedPaths.add(path) : likedPaths.delete(path);
-  native.setLiked(path, val);
-}
-function albumHasLike(a) { return a.photos && a.photos.some(p => isLiked(p.path)); }
-function isItemLiked(i)  { return i.type === "album" ? albumHasLike(i) : isLiked(i.path); }
 
-// ── Called by Swift after scanning ────────────────────────────────
-function loadLibrary(payload) {
-  publicItems  = payload.public  || [];
-  privateItems = payload.private || [];
-  function seedLiked(list) {
-    list.forEach(i => {
-      if (i.liked) likedPaths.add(i.path);
-      if (i.photos) i.photos.forEach(p => { if (p.liked) likedPaths.add(p.path); });
-    });
+function isLiked(path) { return likedPaths.has(path); }
+function setLiked(path, val) { val ? likedPaths.add(path) : likedPaths.delete(path); native.setLiked(path, val); }
+function albumHasLike(a) { return a.photos && a.photos.some(p => isLiked(p.path)); }
+function isItemLiked(i) { return i.type === "album" ? albumHasLike(i) : isLiked(i.path); }
+
+// ── Pagination & observers ─────────────────────────────────────────
+const PAGE_SIZE = 48;
+let currentList = [], renderedCount = 0;
+let thumbObserver = null, sentinelObserver = null;
+
+function resetGrid() {
+  if (thumbObserver)    { thumbObserver.disconnect();    thumbObserver = null; }
+  if (sentinelObserver) { sentinelObserver.disconnect(); sentinelObserver = null; }
+  renderedCount = 0;
+}
+
+function renderGrid(list) {
+  resetGrid();
+  currentList = list;
+  const grid = document.getElementById("video-grid");
+  grid.innerHTML = "";
+
+  if (list.length === 0) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-8 12.5v-9l6 4.5-6 4.5z"/></svg>
+      <span>No items found</span></div>`;
+    return;
   }
-  seedLiked(publicItems);
-  seedLiked(privateItems);
-  items = isPrivate ? privateItems : publicItems;
-  document.getElementById("loading-view").style.display = "none";
-  document.getElementById("home-view").style.display = "block";
-  buildChannelList();
-  renderGrid(filteredItems());
+
+  // Thumbnail IntersectionObserver — fires when a snap-pending placeholder
+  // scrolls into view (with 400px lookahead) and captures a canvas frame.
+  thumbObserver = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        thumbObserver.unobserve(e.target);
+        snapThumb(e.target);
+      }
+    });
+  }, { root: document.getElementById("main-scroll"), rootMargin: "400px" });
+
+  // Sentinel at the end of the grid triggers the next page load.
+  const sentinel = document.createElement("div");
+  sentinel.id = "grid-sentinel";
+  sentinel.style.cssText = "height:1px;grid-column:1/-1";
+  grid.appendChild(sentinel);
+
+  sentinelObserver = new IntersectionObserver((entries) => {
+    if (entries[0].isIntersecting && renderedCount < currentList.length) appendPage();
+  }, { root: document.getElementById("main-scroll"), rootMargin: "400px" });
+  sentinelObserver.observe(sentinel);
+
+  appendPage(); // render first page immediately
+}
+
+function appendPage() {
+  const grid = document.getElementById("video-grid");
+  const sentinel = document.getElementById("grid-sentinel");
+  const slice = currentList.slice(renderedCount, renderedCount + PAGE_SIZE);
+
+  slice.forEach(item => {
+    const tmp = document.createElement("div");
+    tmp.innerHTML = item.type === "album" ? albumCardHTML(item) : videoCardHTML(item);
+    const card = tmp.firstElementChild;
+    grid.insertBefore(card, sentinel);
+    // Register any snap-pending thumbnails with the observer
+    card.querySelectorAll(".snap-pending").forEach(el => thumbObserver && thumbObserver.observe(el));
+  });
+
+  renderedCount += slice.length;
+
+  // Show count label once all pages are rendered
+  const existing = document.getElementById("grid-count");
+  if (existing) existing.remove();
+  if (renderedCount >= currentList.length && currentList.length > PAGE_SIZE) {
+    const label = document.createElement("div");
+    label.id = "grid-count";
+    label.className = "page-count";
+    label.textContent = `${currentList.length} items`;
+    grid.insertBefore(label, sentinel);
+  }
+}
+
+// ── Thumbnail capture ──────────────────────────────────────────────
+// Called when a .snap-pending placeholder enters the viewport.
+// Creates one hidden video, seeks to a random point, captures a canvas frame.
+function snapThumb(placeholder) {
+  if (placeholder.dataset.snapping) return;
+  placeholder.dataset.snapping = "1";
+  const src = placeholder.dataset.src;
+  if (!src) return;
+
+  const vid = document.createElement("video");
+  vid.muted = true;
+  vid.preload = "metadata";
+  vid.style.display = "none";
+  document.body.appendChild(vid);
+
+  vid.addEventListener("loadedmetadata", () => {
+    // Update the duration badge on this card
+    const badge = placeholder.closest(".thumb-wrapper")?.querySelector(".duration-badge");
+    if (badge && isFinite(vid.duration) && vid.duration > 0) {
+      badge.textContent = fmtDuration(vid.duration);
+      badge.style.display = "";
+    }
+    const t = isFinite(vid.duration) && vid.duration > 0
+      ? vid.duration * (0.05 + Math.random() * 0.4)
+      : 0;
+    vid.currentTime = t;
+  });
+
+  vid.addEventListener("seeked", () => {
+    try {
+      const c = document.createElement("canvas");
+      c.width = vid.videoWidth || 480;
+      c.height = vid.videoHeight || 270;
+      c.getContext("2d").drawImage(vid, 0, 0);
+      const img = document.createElement("img");
+      img.className = "card-thumb";
+      img.src = c.toDataURL("image/jpeg", 0.82);
+      placeholder.replaceWith(img);
+    } catch(e) { /* cross-origin or decode error — leave placeholder */ }
+    vid.remove();
+  }, { once: true });
+
+  vid.src = src;
+  vid.load();
+}
+
+// ── Hover preview ──────────────────────────────────────────────────
+let _previewTimer = null;
+function startPreview(wrapper, path) {
+  _previewTimer = setTimeout(() => {
+    let vid = wrapper.querySelector(".preview-video");
+    if (!vid) {
+      vid = document.createElement("video");
+      vid.className = "preview-video";
+      vid.muted = true;
+      vid.loop = true;
+      vid.playsInline = true;
+      wrapper.appendChild(vid);
+      vid.addEventListener("loadedmetadata", () => {
+        if (isFinite(vid.duration) && vid.duration > 0)
+          vid.currentTime = vid.duration * (0.1 + Math.random() * 0.6);
+      });
+      vid.addEventListener("seeked", () => {
+        vid.play().then(() => { vid.style.opacity = "1"; }).catch(() => {});
+      }, { once: true });
+      vid.src = fileURL(path);
+      vid.load();
+    } else {
+      if (isFinite(vid.duration) && vid.duration > 0)
+        vid.currentTime = vid.duration * (0.1 + Math.random() * 0.6);
+      vid.play().then(() => { vid.style.opacity = "1"; }).catch(() => {});
+    }
+  }, 350);
+}
+function stopPreview(wrapper) {
+  clearTimeout(_previewTimer);
+  const vid = wrapper.querySelector(".preview-video");
+  if (vid) { vid.style.opacity = "0"; setTimeout(() => { try { vid.pause(); } catch(e){} }, 260); }
+}
+
+// ── Card HTML ──────────────────────────────────────────────────────
+function videoCardHTML(v) {
+  const liked = isLiked(v.path);
+  const safe  = v.path.replace(/\\/g,"\\\\").replace(/'/g,"\\'");
+  // Use sidecar thumbnail if yt-dlp downloaded one; otherwise lazy-snap
+  const thumbContent = v.thumbnailPath
+    ? `<img class="card-thumb" src="${fileURL(v.thumbnailPath)}" loading="lazy">`
+    : `<div class="thumb-placeholder snap-pending"
+          style="background:linear-gradient(135deg,${v.color}28,${v.color}50)"
+          data-src="${fileURL(v.path)}">
+         <svg width="44" height="44" viewBox="0 0 24 24" fill="${v.color}" opacity="0.5"><path d="M8 5v14l11-7z"/></svg>
+       </div>`;
+  return `<div class="video-card" onclick="playVideo('${v.id}')">
+    <div class="thumb-wrapper"
+         onmouseenter="startPreview(this,'${safe}')"
+         onmouseleave="stopPreview(this)">
+      ${thumbContent}
+      <span class="duration-badge"></span>
+      ${liked ? '<span class="liked-badge">♥</span>' : ''}
+    </div>
+    <div class="video-info">
+      <div class="ch-avatar-sm" style="background:${v.color}">${v.channel[0]}</div>
+      <div class="video-meta">
+        <div class="video-title">${escHtml(v.title)}</div>
+        <div class="video-channel">${escHtml(v.channel)}</div>
+        <div class="video-stats">${relativeDate(v.downloadedAt)}</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+const photoIcon = `<svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" opacity="0.5"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>`;
+
+function albumCardHTML(a) {
+  const liked = albumHasLike(a);
+  const p = a.photos || [];
+  const thumbFor = (ph, op) => ph
+    ? `<img src="${fileURL(ph.path)}" style="width:100%;height:100%;object-fit:cover" loading="lazy">`
+    : `<div style="background:linear-gradient(135deg,${a.color}28,${a.color}55);width:100%;height:100%;display:flex;align-items:center;justify-content:center;opacity:${op}">${photoIcon}</div>`;
+  return `<div class="video-card" onclick="openAlbum('${a.id}')">
+    <div class="album-thumb-wrap">
+      <div class="album-stack">
+        ${p.length > 2 ? `<div class="stack-back2">${thumbFor(p[2], 0.4)}</div>` : ""}
+        ${p.length > 1 ? `<div class="stack-back1">${thumbFor(p[1], 0.65)}</div>` : ""}
+        <div class="stack-front">${thumbFor(p[0], 1)}</div>
+      </div>
+      <span class="album-count-badge">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
+        ${p.length}
+      </span>
+      ${liked ? '<span class="liked-badge">♥</span>' : ""}
+    </div>
+    <div class="video-info">
+      <div class="ch-avatar-sm" style="background:${a.color}">${a.channel[0]}</div>
+      <div class="video-meta">
+        <div class="video-title">${escHtml(a.title)}</div>
+        <div class="video-channel">${escHtml(a.channel)}</div>
+        <div class="video-stats">${p.length} photos · ${relativeDate(a.downloadedAt)}</div>
+      </div>
+    </div>
+  </div>`;
 }
 
 // ── Sort / filter ──────────────────────────────────────────────────
@@ -370,8 +553,8 @@ function applySort(list) {
   switch (currentSort) {
     case "latest":   return arr.sort((a,b) => b.downloadedAt - a.downloadedAt);
     case "oldest":   return arr.sort((a,b) => a.downloadedAt - b.downloadedAt);
-    case "largest":  return arr.sort((a,b) => (b.duration ?? 0) - (a.duration ?? 0));
-    case "smallest": return arr.sort((a,b) => (a.duration ?? Infinity) - (b.duration ?? Infinity));
+    case "largest":  return arr.sort((a,b) => b.fileSize - a.fileSize);
+    case "smallest": return arr.sort((a,b) => a.fileSize - b.fileSize);
     case "az":       return arr.sort((a,b) => a.title.localeCompare(b.title));
   }
   return arr;
@@ -405,139 +588,22 @@ function buildChannelList() {
     </div>`).join("");
 }
 
-// ── Grid rendering ─────────────────────────────────────────────────
-function renderGrid(list) {
-  const grid = document.getElementById("video-grid");
-  if (list.length === 0) {
-    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1">
-      <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-8 12.5v-9l6 4.5-6 4.5z"/></svg>
-      <span>No items found</span>
-    </div>`;
-    return;
+// ── Called by Swift ────────────────────────────────────────────────
+function loadLibrary(payload) {
+  publicItems  = payload.public  || [];
+  privateItems = payload.private || [];
+  function seedLiked(list) {
+    list.forEach(i => {
+      if (i.liked) likedPaths.add(i.path);
+      if (i.photos) i.photos.forEach(p => { if (p.liked) likedPaths.add(p.path); });
+    });
   }
-  grid.innerHTML = list.map(i => i.type === "album" ? albumCardHTML(i) : videoCardHTML(i)).join("");
-}
-
-function thumbHTML(v) {
-  if (v.thumbnailPath) {
-    return `<img class="card-thumb" src="${fileURL(v.thumbnailPath)}">`;
-  }
-  return `<video src="${fileURL(v.path)}" preload="metadata" style="width:100%;height:100%;object-fit:cover" onloadedmetadata="snapThumb(this)"></video>`;
-}
-
-function videoCardHTML(v) {
-  const liked = isLiked(v.path);
-  const dur = fmtDuration(v.duration);
-  const safePath = v.path.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-  return `<div class="video-card" onclick="playVideo('${v.id}')">
-    <div class="thumb-wrapper"
-         onmouseenter="startPreview(this,'${safePath}')"
-         onmouseleave="stopPreview(this)">
-      ${thumbHTML(v)}
-      ${dur ? `<span class="duration-badge">${dur}</span>` : ''}
-      ${liked ? '<span class="liked-badge">♥</span>' : ''}
-    </div>
-    <div class="video-info">
-      <div class="ch-avatar-sm" style="background:${v.color}">${v.channel[0]}</div>
-      <div class="video-meta">
-        <div class="video-title">${escHtml(v.title)}</div>
-        <div class="video-channel">${escHtml(v.channel)}</div>
-        <div class="video-stats">${relativeDate(v.downloadedAt)}</div>
-      </div>
-    </div>
-  </div>`;
-}
-
-const photoIcon = `<svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" opacity="0.5"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>`;
-
-function albumCardHTML(a) {
-  const liked = albumHasLike(a);
-  const p = a.photos || [];
-  const thumbFor = (ph, op) => ph
-    ? `<img src="${fileURL(ph.path)}" style="width:100%;height:100%;object-fit:cover">`
-    : `<div style="background:linear-gradient(135deg,${a.color}28,${a.color}55);width:100%;height:100%;display:flex;align-items:center;justify-content:center;opacity:${op}">${photoIcon}</div>`;
-  return `<div class="video-card" onclick="openAlbum('${a.id}')">
-    <div class="album-thumb-wrap">
-      <div class="album-stack">
-        ${p.length > 2 ? `<div class="stack-back2">${thumbFor(p[2], 0.4)}</div>` : ''}
-        ${p.length > 1 ? `<div class="stack-back1">${thumbFor(p[1], 0.65)}</div>` : ''}
-        <div class="stack-front">${thumbFor(p[0], 1)}</div>
-      </div>
-      <span class="album-count-badge">
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
-        ${p.length}
-      </span>
-      ${liked ? '<span class="liked-badge">♥</span>' : ''}
-    </div>
-    <div class="video-info">
-      <div class="ch-avatar-sm" style="background:${a.color}">${a.channel[0]}</div>
-      <div class="video-meta">
-        <div class="video-title">${escHtml(a.title)}</div>
-        <div class="video-channel">${escHtml(a.channel)}</div>
-        <div class="video-stats">${p.length} photos · ${relativeDate(a.downloadedAt)}</div>
-      </div>
-    </div>
-  </div>`;
-}
-
-// Canvas-capture thumbnail for videos without a sidecar image
-function snapThumb(videoEl) {
-  const t = videoEl.duration * (0.05 + Math.random() * 0.4);
-  videoEl.currentTime = isFinite(t) && t > 0 ? t : 0;
-  videoEl.addEventListener("seeked", function onSeeked() {
-    videoEl.removeEventListener("seeked", onSeeked);
-    const c = document.createElement("canvas");
-    c.width = videoEl.videoWidth; c.height = videoEl.videoHeight;
-    c.getContext("2d").drawImage(videoEl, 0, 0);
-    const img = document.createElement("img");
-    img.className = "card-thumb";
-    img.src = c.toDataURL();
-    img.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover";
-    videoEl.parentNode.insertBefore(img, videoEl);
-    videoEl.style.display = "none";
-  });
-}
-
-// ── Hover preview ──────────────────────────────────────────────────
-let _previewTimer = null;
-
-function startPreview(wrapper, path) {
-  _previewTimer = setTimeout(() => {
-    let vid = wrapper.querySelector('.preview-video');
-    if (!vid) {
-      vid = document.createElement('video');
-      vid.className = 'preview-video';
-      vid.muted = true;
-      vid.loop = true;
-      vid.playsInline = true;
-      wrapper.appendChild(vid);
-      vid.addEventListener('loadedmetadata', () => {
-        if (isFinite(vid.duration) && vid.duration > 0) {
-          vid.currentTime = vid.duration * (0.1 + Math.random() * 0.6);
-        }
-      });
-      vid.addEventListener('seeked', () => {
-        vid.play().then(() => { vid.style.opacity = '1'; }).catch(() => {});
-      }, { once: true });
-      vid.src = fileURL(path);
-      vid.load();
-    } else {
-      if (isFinite(vid.duration) && vid.duration > 0) {
-        vid.currentTime = vid.duration * (0.1 + Math.random() * 0.6);
-      } else {
-        vid.play().then(() => { vid.style.opacity = '1'; }).catch(() => {});
-      }
-    }
-  }, 350);
-}
-
-function stopPreview(wrapper) {
-  clearTimeout(_previewTimer);
-  const vid = wrapper.querySelector('.preview-video');
-  if (vid) {
-    vid.style.opacity = '0';
-    setTimeout(() => { try { vid.pause(); } catch(e){} }, 260);
-  }
+  seedLiked(publicItems); seedLiked(privateItems);
+  items = publicItems;
+  document.getElementById("loading-view").style.display = "none";
+  document.getElementById("home-view").style.display = "block";
+  buildChannelList();
+  renderGrid(filteredItems());
 }
 
 // ── Video player ───────────────────────────────────────────────────
@@ -554,27 +620,38 @@ function playVideo(id) {
   const av = document.getElementById("player-avatar");
   av.textContent = v.channel[0]; av.style.background = v.color;
   document.getElementById("player-ch-name").textContent = v.channel;
-  document.getElementById("player-ch-meta").textContent = fmtDuration(v.duration) || fmtSize(v.fileSize);
+  // Duration shown once video metadata loads; fall back to file size
+  const metaEl = document.getElementById("player-ch-meta");
+  metaEl.textContent = fmtSize(v.fileSize);
+  vid.addEventListener("loadedmetadata", () => {
+    if (isFinite(vid.duration) && vid.duration > 0)
+      metaEl.textContent = fmtDuration(vid.duration);
+  }, { once: true });
   document.getElementById("desc-stats").textContent = relativeDate(v.downloadedAt);
   document.getElementById("desc-text").textContent = "Downloaded via MediaVault";
   updateVideoLikeBtn();
 
   const others = applySort(items.filter(x => x.id !== v.id && x.type === "video")).slice(0, 12);
   document.getElementById("up-next-list").innerHTML = others.map(o => {
-    const dur = fmtDuration(o.duration);
+    const safe = o.path.replace(/\\/g,"\\\\").replace(/'/g,"\\'");
+    const thumbEl = o.thumbnailPath
+      ? `<img src="${fileURL(o.thumbnailPath)}" style="width:100%;height:100%;object-fit:cover" loading="lazy">`
+      : `<div class="thumb-placeholder snap-pending"
+              style="background:linear-gradient(135deg,${o.color}28,${o.color}50);height:100%;display:flex;align-items:center;justify-content:center"
+              data-src="${fileURL(o.path)}">
+           <svg width="22" height="22" viewBox="0 0 24 24" fill="${o.color}" opacity="0.6"><path d="M8 5v14l11-7z"/></svg>
+         </div>`;
     return `<div class="up-next-card" onclick="playVideo('${o.id}')">
-      <div class="up-next-thumb">
-        ${o.thumbnailPath
-          ? `<img src="${fileURL(o.thumbnailPath)}" style="width:100%;height:100%;object-fit:cover">`
-          : `<video src="${fileURL(o.path)}" preload="metadata" style="width:100%;height:100%;object-fit:cover" onloadedmetadata="snapThumb(this)"></video>`}
-        ${dur ? `<span class="duration-badge" style="position:absolute;bottom:3px;right:3px">${dur}</span>` : ''}
-      </div>
+      <div class="up-next-thumb">${thumbEl}<span class="duration-badge"></span></div>
       <div class="up-next-info">
         <div class="up-next-title">${escHtml(o.title)}</div>
         <div class="up-next-channel">${escHtml(o.channel)}</div>
       </div>
     </div>`;
   }).join("");
+
+  // Snap up-next thumbnails directly (they're all visible)
+  document.querySelectorAll("#up-next-list .snap-pending").forEach(snapThumb);
   document.querySelector(".main").scrollTo(0, 0);
 }
 
@@ -585,7 +662,6 @@ function updateVideoLikeBtn() {
   btn.className = "action-pill" + (liked ? " liked" : "");
   btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg> ${liked ? "Liked" : "Like"}`;
 }
-
 function toggleVideoLike() {
   if (!currentVideo) return;
   setLiked(currentVideo.path, !isLiked(currentVideo.path));
@@ -612,9 +688,9 @@ function closeAlbum() {
   renderGrid(filteredItems());
 }
 function albumKeyHandler(e) {
-  if (e.key === "ArrowLeft")  albumNav(-1);
+  if (e.key === "ArrowLeft") albumNav(-1);
   if (e.key === "ArrowRight") albumNav(1);
-  if (e.key === "Escape")     closeAlbum();
+  if (e.key === "Escape") closeAlbum();
 }
 function setAlbumPhotos(photos, idx) {
   albumPhotos = photos;
@@ -622,20 +698,18 @@ function setAlbumPhotos(photos, idx) {
   renderAlbumPhoto(); renderFilmstrip();
 }
 function albumNav(dir) {
-  const newIdx = albumPhotoIndex + dir;
-  if (newIdx < 0 || newIdx >= albumPhotos.length) return;
-  albumPhotoIndex = newIdx;
+  const n = albumPhotoIndex + dir;
+  if (n < 0 || n >= albumPhotos.length) return;
+  albumPhotoIndex = n;
   renderAlbumPhoto(); scrollFilmstripTo(albumPhotoIndex);
 }
 function renderAlbumPhoto() {
   const p = albumPhotos[albumPhotoIndex];
   if (!p) return;
-  const wrap = document.getElementById("album-photo-wrap");
-  wrap.innerHTML = p.path
+  document.getElementById("album-photo-wrap").innerHTML = p.path
     ? `<img class="album-photo" src="${fileURL(p.path)}">`
-    : `<div class="album-photo-placeholder" style="background:linear-gradient(135deg,${currentAlbum?.color || '#333'}22,${currentAlbum?.color || '#333'}44)">
+    : `<div class="album-photo-placeholder" style="background:linear-gradient(135deg,${currentAlbum?.color||'#333'}22,${currentAlbum?.color||'#333'}44)">
          <svg width="64" height="64" viewBox="0 0 24 24" fill="currentColor" opacity="0.2"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
-         <span style="font-size:12px">Photo placeholder</span>
        </div>`;
   document.getElementById("album-counter").textContent = `${albumPhotoIndex+1} / ${albumPhotos.length}`;
   document.getElementById("nav-prev").classList.toggle("disabled", albumPhotoIndex === 0);
@@ -648,23 +722,18 @@ function renderAlbumPhoto() {
 function renderFilmstrip() {
   const photos = albumLikedOnly ? albumPhotos.filter(p => isLiked(p.path)) : albumPhotos;
   document.getElementById("album-filmstrip").innerHTML = photos.map(p => {
-    const realIdx = albumPhotos.indexOf(p);
-    return `<div class="filmstrip-thumb ${realIdx === albumPhotoIndex ? "active" : ""}" onclick="jumpToPhoto(${realIdx})">
-      ${p.path
-        ? `<img src="${fileURL(p.path)}">`
-        : `<div class="thumb-placeholder" style="background:linear-gradient(135deg,${currentAlbum?.color || '#333'}40,${currentAlbum?.color || '#333'}70);height:100%;display:flex;align-items:center;justify-content:center">${photoIcon}</div>`}
-      ${isLiked(p.path) ? '<div class="liked-dot"></div>' : ''}
+    const ri = albumPhotos.indexOf(p);
+    return `<div class="filmstrip-thumb ${ri === albumPhotoIndex ? "active" : ""}" onclick="jumpToPhoto(${ri})">
+      ${p.path ? `<img src="${fileURL(p.path)}">` : `<div style="background:${currentAlbum?.color||'#333'}55;width:100%;height:100%"></div>`}
+      ${isLiked(p.path) ? '<div class="liked-dot"></div>' : ""}
     </div>`;
   }).join("");
 }
 function scrollFilmstripTo(idx) {
   const strip = document.getElementById("album-filmstrip");
-  const thumb = strip.children[idx];
-  if (thumb) thumb.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+  strip.children[idx]?.scrollIntoView({ behavior:"smooth", inline:"center", block:"nearest" });
 }
-function jumpToPhoto(realIdx) {
-  albumPhotoIndex = realIdx; renderAlbumPhoto(); renderFilmstrip();
-}
+function jumpToPhoto(ri) { albumPhotoIndex = ri; renderAlbumPhoto(); renderFilmstrip(); }
 function togglePhotoLike() {
   const p = albumPhotos[albumPhotoIndex];
   if (!p) return;
@@ -675,12 +744,9 @@ function toggleAlbumLikedFilter() {
   albumLikedOnly = !albumLikedOnly;
   document.getElementById("album-liked-toggle").classList.toggle("active", albumLikedOnly);
   if (albumLikedOnly) {
-    const likedPhotos = albumPhotos.filter(p => isLiked(p.path));
-    if (!likedPhotos.length) { albumLikedOnly = false; document.getElementById("album-liked-toggle").classList.remove("active"); }
-    else if (!isLiked(albumPhotos[albumPhotoIndex]?.path)) {
-      albumPhotoIndex = albumPhotos.indexOf(likedPhotos[0]);
-      renderAlbumPhoto();
-    }
+    const lp = albumPhotos.filter(p => isLiked(p.path));
+    if (!lp.length) { albumLikedOnly = false; document.getElementById("album-liked-toggle").classList.remove("active"); return; }
+    if (!isLiked(albumPhotos[albumPhotoIndex]?.path)) { albumPhotoIndex = albumPhotos.indexOf(lp[0]); renderAlbumPhoto(); }
   }
   renderFilmstrip();
 }
@@ -716,21 +782,17 @@ function setActive(el) {
   document.querySelectorAll(".sidebar-item").forEach(e => e.classList.remove("active"));
   el?.classList.add("active");
 }
-function showInFinder(path) {
-  if (path) native.showInFinder(path);
-}
+function showInFinder(path) { if (path) native.showInFinder(path); }
 
 // ── Private mode ───────────────────────────────────────────────────
-function togglePrivateMode() {
-  if (isPrivate) { exitPrivateMode(); } else { native.authenticate(); }
-}
+function togglePrivateMode() { isPrivate ? exitPrivateMode() : native.authenticate(); }
 function enterPrivateMode() {
   isPrivate = true; items = privateItems;
   document.body.classList.add("private-mode");
   activeChannel = "all"; currentVideo = null;
-  buildChannelList(); renderGrid(filteredItems());
   document.getElementById("player-view").style.display = "none";
   document.getElementById("home-view").style.display = "block";
+  buildChannelList(); renderGrid(filteredItems());
   setActive(document.getElementById("home-btn"));
 }
 function exitPrivateMode() {
@@ -746,11 +808,6 @@ function exitPrivateMode() {
   setActive(document.getElementById("home-btn"));
 }
 function authFailed() {}
-
-// ── Utilities ──────────────────────────────────────────────────────
-function escHtml(s) {
-  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
-}
 </script>
 </body>
 </html>
