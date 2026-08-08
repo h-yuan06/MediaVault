@@ -80,9 +80,8 @@
   .video-channel { font-size: 11px; color: var(--text3); margin-bottom: 1px; }
   .video-stats { font-size: 11px; color: var(--text3); }
 
-  #player-view { display: none; padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
-  .player-layout { display: grid; grid-template-columns: 1fr 340px; gap: 24px; }
-  @media (max-width: 860px) { .player-layout { grid-template-columns: 1fr; } .up-next { display: none; } }
+  #player-view { display: none; padding: 20px 24px 20px 28px; }
+  .player-layout { display: grid; grid-template-columns: 1fr 300px; gap: 24px; align-items: start; }
   .player-video-wrap { position: relative; width: 100%; aspect-ratio: 16/9; background: #000; border-radius: var(--radius); overflow: hidden; margin-bottom: 13px; }
   .player-video-wrap video { width: 100%; height: 100%; display: block; }
   .player-title { font-size: 17px; font-weight: 700; line-height: 1.3; margin-bottom: 10px; }
@@ -238,8 +237,8 @@
               <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M20 6h-8l-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2z"/></svg>
               Show in Finder
             </button>
-            <button class="action-pill" onclick="toggleFullscreen()">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" id="fullscreen-icon"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+            <button class="action-pill" onclick="document.getElementById('main-video').requestFullscreen()">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
               Fullscreen
             </button>
           </div>
@@ -431,8 +430,12 @@ function appendPage() {
     tmp.innerHTML = item.type === "album" ? albumCardHTML(item) : videoCardHTML(item);
     const card = tmp.firstElementChild;
     grid.insertBefore(card, sentinel);
-    // Register any snap-pending thumbnails with the observer
     card.querySelectorAll(".snap-pending").forEach(el => thumbObserver && thumbObserver.observe(el));
+    // Cards with a sidecar thumbnail skip snapThumb — probe duration separately
+    if (item.thumbnailPath && item.type === "video") {
+      const badge = card.querySelector(".duration-badge");
+      probeDuration(badge, item.path);
+    }
   });
 
   renderedCount += slice.length;
@@ -466,7 +469,7 @@ function snapThumb(placeholder) {
 
   vid.addEventListener("loadedmetadata", () => {
     // Update the duration badge on this card
-    const badge = placeholder.closest(".thumb-wrapper")?.querySelector(".duration-badge");
+    const badge = placeholder.closest(".thumb-wrapper, .up-next-thumb")?.querySelector(".duration-badge");
     if (badge && isFinite(vid.duration) && vid.duration > 0) {
       badge.textContent = fmtDuration(vid.duration);
       badge.style.display = "";
@@ -495,6 +498,28 @@ function snapThumb(placeholder) {
 
   vid.src = src;
   vid.load();
+}
+
+// ── Duration probe (for cards with a sidecar thumbnail) ────────────
+// snapThumb sets the badge as a side-effect of canvas capture, but cards
+// that already have a thumbnailPath skip snapThumb entirely.
+function probeDuration(badge, videoPath) {
+  if (!badge || badge.dataset.probing) return;
+  badge.dataset.probing = "1";
+  const vid = document.createElement("video");
+  vid.muted = true;
+  vid.preload = "metadata";
+  vid.style.display = "none";
+  document.body.appendChild(vid);
+  vid.addEventListener("loadedmetadata", () => {
+    if (isFinite(vid.duration) && vid.duration > 0) {
+      badge.textContent = fmtDuration(vid.duration);
+      badge.style.display = "";
+    }
+    vid.remove();
+  }, { once: true });
+  vid.addEventListener("error", () => vid.remove(), { once: true });
+  vid.src = fileURL(videoPath);
 }
 
 // ── Hover preview ──────────────────────────────────────────────────
@@ -698,16 +723,24 @@ function playVideo(id) {
 
   const others = applySort(items.filter(x => x.id !== v.id && x.type === "video")).slice(0, 12);
   document.getElementById("up-next-list").innerHTML = others.map(o => {
-    const safe = o.path.replace(/\\/g,"\\\\").replace(/'/g,"\\'");
+    const oURL = fileURL(o.path);
+    const safe  = o.path.replace(/\\/g,"\\\\").replace(/'/g,"\\'");
+    const cached = thumbCache.get(oURL);
     const thumbEl = o.thumbnailPath
       ? `<img src="${fileURL(o.thumbnailPath)}" style="width:100%;height:100%;object-fit:cover" loading="lazy">`
-      : `<div class="thumb-placeholder snap-pending"
-              style="background:linear-gradient(135deg,${o.color}28,${o.color}50);height:100%;display:flex;align-items:center;justify-content:center"
-              data-src="${fileURL(o.path)}">
-           <svg width="22" height="22" viewBox="0 0 24 24" fill="${o.color}" opacity="0.6"><path d="M8 5v14l11-7z"/></svg>
-         </div>`;
+      : cached
+        ? `<img src="${cached}" style="width:100%;height:100%;object-fit:cover">`
+        : `<div class="thumb-placeholder snap-pending"
+                style="background:linear-gradient(135deg,${o.color}28,${o.color}50);height:100%;display:flex;align-items:center;justify-content:center"
+                data-src="${oURL}">
+             <svg width="22" height="22" viewBox="0 0 24 24" fill="${o.color}" opacity="0.6"><path d="M8 5v14l11-7z"/></svg>
+           </div>`;
     return `<div class="up-next-card" onclick="playVideo('${o.id}')">
-      <div class="up-next-thumb">${thumbEl}<span class="duration-badge"></span></div>
+      <div class="up-next-thumb"
+           onmouseenter="startPreview(this,'${safe}')"
+           onmouseleave="stopPreview(this)">
+        ${thumbEl}<span class="duration-badge"></span>
+      </div>
       <div class="up-next-info">
         <div class="up-next-title">${escHtml(o.title)}</div>
         <div class="up-next-channel">${escHtml(o.channel)}</div>
@@ -715,8 +748,12 @@ function playVideo(id) {
     </div>`;
   }).join("");
 
-  // Snap up-next thumbnails directly (they're all visible)
   document.querySelectorAll("#up-next-list .snap-pending").forEach(snapThumb);
+  // Probe duration for up-next cards that already have a sidecar thumbnail
+  document.querySelectorAll("#up-next-list .up-next-thumb").forEach((thumb, i) => {
+    const o = others[i];
+    if (o && o.thumbnailPath) probeDuration(thumb.querySelector(".duration-badge"), o.path);
+  });
   document.querySelector(".main").scrollTo(0, 0);
 }
 
@@ -851,23 +888,13 @@ function toggleAlbumLikedFilter() {
 function hideSidebar() { document.getElementById("sidebar").classList.add("hidden"); }
 function showSidebar() { document.getElementById("sidebar").classList.remove("hidden"); }
 
-// ── Fullscreen ─────────────────────────────────────────────────────
-function toggleFullscreen() {
-  const wrap = document.querySelector(".player-video-wrap");
-  if (!document.fullscreenElement) {
-    wrap.requestFullscreen && wrap.requestFullscreen();
-  } else {
-    document.exitFullscreen && document.exitFullscreen();
-  }
-}
-document.addEventListener("fullscreenchange", () => {
-  const icon = document.getElementById("fullscreen-icon");
-  if (!icon) return;
-  if (document.fullscreenElement) {
-    icon.innerHTML = '<path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/>';
-  } else {
-    icon.innerHTML = '<path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>';
-  }
+// ── Space to pause ─────────────────────────────────────────────────
+document.addEventListener("keydown", e => {
+  if (e.code !== "Space" || e.target.tagName === "INPUT") return;
+  const vid = document.getElementById("main-video");
+  if (document.getElementById("player-view").style.display === "none") return;
+  e.preventDefault();
+  vid.paused ? vid.play() : vid.pause();
 });
 
 // ── Navigation ─────────────────────────────────────────────────────
