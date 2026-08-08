@@ -32,9 +32,10 @@ final class PlayerCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
     // JS → Swift bridge
     nonisolated func userContentController(_ userContentController: WKUserContentController,
                                            didReceive message: WKScriptMessage) {
-        guard let body = message.body as? [String: Any],
-              let action = body["action"] as? String else { return }
+        let rawBody = message.body  // capture before crossing actor boundary
         Task { @MainActor in
+            guard let body = rawBody as? [String: Any],
+                  let action = body["action"] as? String else { return }
             switch action {
             case "showInFinder":
                 if let path = body["path"] as? String {
@@ -94,7 +95,7 @@ struct PlayerWebView: NSViewRepresentable {
         context.coordinator.webView = webView
 
         // Load the bundled HTML
-        if let htmlURL = Bundle.module.url(forResource: "player", withExtension: "html", subdirectory: "Resources") {
+        if let htmlURL = Bundle.main.url(forResource: "player", withExtension: "html") {
             let html = (try? String(contentsOf: htmlURL, encoding: .utf8)) ?? ""
             let baseURL = store.downloadRootURL
             webView.loadHTMLString(html, baseURL: baseURL)
