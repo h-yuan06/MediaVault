@@ -94,11 +94,18 @@ struct PlayerWebView: NSViewRepresentable {
         webView.navigationDelegate = context.coordinator
         context.coordinator.webView = webView
 
-        // Load the bundled HTML
-        if let htmlURL = Bundle.main.url(forResource: "player", withExtension: "html") {
-            let html = (try? String(contentsOf: htmlURL, encoding: .utf8)) ?? ""
-            let baseURL = store.downloadRootURL
-            webView.loadHTMLString(html, baseURL: baseURL)
+        // Load the bundled HTML with file access so media src paths resolve
+        let htmlURL = Bundle.main.url(forResource: "player", withExtension: "html")
+            ?? Bundle.main.resourceURL?.appendingPathComponent("player.html")
+        if let htmlURL, FileManager.default.fileExists(atPath: htmlURL.path) {
+            let accessRoot = store.downloadRootURL ?? htmlURL.deletingLastPathComponent()
+            webView.loadFileURL(htmlURL, allowingReadAccessTo: accessRoot)
+        } else {
+            // Fallback: log and show error page so we can diagnose
+            let bundles = [Bundle.main.bundlePath, Bundle.main.resourcePath ?? "nil"]
+            let msg = "player.html not found. Bundle paths: \(bundles)"
+            print("[PlayerWebView] \(msg)")
+            webView.loadHTMLString("<pre style='color:red'>\(msg)</pre>", baseURL: nil)
         }
 
         return webView
