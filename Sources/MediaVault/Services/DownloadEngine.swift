@@ -119,7 +119,7 @@ class DownloadEngine: ObservableObject {
 
         var env = ProcessInfo.processInfo.environment
         let homePath = env["HOME"] ?? NSHomeDirectory()
-        let extraPaths = "\(homePath)/.deno/bin:/opt/anaconda3/envs/Reddit_Download/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+        let extraPaths = "\(homePath)/.deno/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
         env["PATH"] = extraPaths + ":" + (env["PATH"] ?? "")
         // Force Python to flush output immediately instead of buffering to 4KB chunks
         env["PYTHONUNBUFFERED"] = "1"

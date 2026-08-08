@@ -63,7 +63,6 @@ class ToolChecker: ObservableObject {
     private nonisolated static func resolve(_ tool: String) -> String? {
         let searchDirs = [
             "\(NSHomeDirectory())/.deno/bin",
-            "/opt/anaconda3/envs/Reddit_Download/bin",
             "/opt/homebrew/bin",
             "/opt/homebrew/sbin",
             "/usr/local/bin",
@@ -122,9 +121,9 @@ class ToolChecker: ObservableObject {
         }
     }
 
-    var ytdlpPath:    String { ytdlp.path    ?? "/opt/anaconda3/envs/Reddit_Download/bin/yt-dlp" }
+    var ytdlpPath:    String { ytdlp.path    ?? "yt-dlp" }
     var galleryDlPath: String { galleryDl.path ?? "gallery-dl" }
-    var ffmpegPath:   String { ffmpeg.path   ?? "/opt/anaconda3/envs/Reddit_Download/bin/ffmpeg" }
+    var ffmpegPath:   String { ffmpeg.path   ?? "ffmpeg" }
     var ffprobePath:  String {
         guard let p = ffmpeg.path else { return "ffprobe" }
         return URL(fileURLWithPath: p).deletingLastPathComponent().appendingPathComponent("ffprobe").path
