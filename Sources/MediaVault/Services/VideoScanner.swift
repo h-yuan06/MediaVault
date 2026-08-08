@@ -37,6 +37,7 @@ enum VideoScanner {
         return palette[abs(hash) % palette.count]
     }
 
+    @MainActor
     static func scan(store: SourceStore) -> (public: [MediaItem], private: [MediaItem]) {
         var pub: [MediaItem] = []
         var priv: [MediaItem] = []
