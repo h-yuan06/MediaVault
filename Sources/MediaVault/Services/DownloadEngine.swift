@@ -312,6 +312,7 @@ class DownloadEngine: ObservableObject {
             "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
             "--download-archive", archiveFile.path,
             "--output", downloadDir.path + "/%(uploader)s/%(title)s.%(ext)s",
+            "--output", "thumbnail:" + downloadDir.path + "/%(uploader)s/.thumbnails/%(title)s.%(ext)s",
             "--ffmpeg-location", tools.ffmpegPath,
             "--write-thumbnail", "--convert-thumbnails", "jpg",
             "--ignore-no-formats-error",

@@ -54,12 +54,29 @@ final class PlayerCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDel
                     let url = URL(fileURLWithPath: path)
                     LikeStore.setLiked(url, liked)
                 }
+            case "changeThumbnail":
+                if let path = body["path"] as? String {
+                    await regenerateThumbnail(for: path)
+                }
             case "authenticate":
                 await performAuth()
             default:
                 break
             }
         }
+    }
+
+    private func regenerateThumbnail(for path: String) async {
+        let videoURL   = URL(fileURLWithPath: path)
+        let ffmpegPath = ToolChecker.shared.ffmpegPath
+        let newPath    = await Task.detached(priority: .userInitiated) {
+            await ThumbnailGenerator.regenerate(for: videoURL, ffmpegPath: ffmpegPath)
+        }.value
+        let escaped = (newPath ?? "").replacingOccurrences(of: "\\", with: "\\\\")
+                                     .replacingOccurrences(of: "'", with: "\\'")
+        let pathEscaped = path.replacingOccurrences(of: "\\", with: "\\\\")
+                              .replacingOccurrences(of: "'", with: "\\'")
+        webView?.evaluateJavaScript("thumbnailReady('\(pathEscaped)', '\(escaped)')", completionHandler: nil)
     }
 
     private func performAuth() async {

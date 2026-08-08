@@ -148,11 +148,16 @@ enum VideoScanner {
     }
 
     private static func findThumbnail(for videoURL: URL) -> String? {
-        let base = videoURL.deletingPathExtension()
-        for ext in thumbExts {
-            let candidate = base.appendingPathExtension(ext)
-            if FileManager.default.fileExists(atPath: candidate.path) {
-                return candidate.path
+        let stem = videoURL.deletingPathExtension().lastPathComponent
+        let dir  = videoURL.deletingLastPathComponent()
+        let hiddenDir = dir.appendingPathComponent(".thumbnails")
+        // Prefer hidden subfolder (yt-dlp per-type output), fall back to sidecar next to video
+        for folder in [hiddenDir, dir] {
+            for ext in thumbExts {
+                let candidate = folder.appendingPathComponent(stem).appendingPathExtension(ext)
+                if FileManager.default.fileExists(atPath: candidate.path) {
+                    return candidate.path
+                }
             }
         }
         return nil

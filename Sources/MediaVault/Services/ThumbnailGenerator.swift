@@ -36,15 +36,40 @@ enum ThumbnailGenerator {
         }
     }
 
+    /// Delete any existing thumbnail for `videoURL` and generate a fresh one at a new random frame.
+    /// Returns the path of the new thumbnail, or nil if ffmpeg failed.
+    static func regenerate(for videoURL: URL, ffmpegPath: String) async -> String? {
+        let stem      = videoURL.deletingPathExtension().lastPathComponent
+        let hiddenDir = videoURL.deletingLastPathComponent().appendingPathComponent(".thumbnails")
+        let outputURL = hiddenDir.appendingPathComponent(stem).appendingPathExtension("jpg")
+        // Delete all existing thumbnails for this video (all extensions, both locations)
+        let dir = videoURL.deletingLastPathComponent()
+        for folder in [hiddenDir, dir] {
+            for ext in thumbExts {
+                let c = folder.appendingPathComponent(stem).appendingPathExtension(ext)
+                try? FileManager.default.removeItem(at: c)
+            }
+        }
+        await generateThumbnail(for: videoURL, ffmpegPath: ffmpegPath)
+        return FileManager.default.fileExists(atPath: outputURL.path) ? outputURL.path : nil
+    }
+
     private static func hasThumbnail(for videoURL: URL) -> Bool {
-        let base = videoURL.deletingPathExtension()
+        let stem = videoURL.deletingPathExtension().lastPathComponent
+        let dir  = videoURL.deletingLastPathComponent()
+        let hiddenDir = dir.appendingPathComponent(".thumbnails")
         return thumbExts.contains { ext in
-            FileManager.default.fileExists(atPath: base.appendingPathExtension(ext).path)
+            FileManager.default.fileExists(atPath: hiddenDir.appendingPathComponent(stem).appendingPathExtension(ext).path) ||
+            FileManager.default.fileExists(atPath: dir.appendingPathComponent(stem).appendingPathExtension(ext).path)
         }
     }
 
     private static func generateThumbnail(for videoURL: URL, ffmpegPath: String) async {
-        let outputURL = videoURL.deletingPathExtension().appendingPathExtension("jpg")
+        let thumbDir = videoURL.deletingLastPathComponent().appendingPathComponent(".thumbnails")
+        try? FileManager.default.createDirectory(at: thumbDir, withIntermediateDirectories: true)
+        let outputURL = thumbDir
+            .appendingPathComponent(videoURL.deletingPathExtension().lastPathComponent)
+            .appendingPathExtension("jpg")
         // Seek to a random offset (10–60 s) before opening the file — fast keyframe seek.
         // ffmpeg handles seeks past EOF gracefully by using the last available frame.
         let seekSecs = Int.random(in: 10...60)

@@ -71,6 +71,7 @@ cat > "${APP_BUNDLE}/Contents/Info.plist" << 'PLIST'
     <key>NSPrincipalClass</key>            <string>NSApplication</string>
     <key>NSHighResolutionCapable</key>     <true/>
     <key>NSFaceIDUsageDescription</key>    <string>Unlock private groups in MediaVault</string>
+    <key>NSWindowSupportsFullScreen</key>  <true/>
 </dict>
 </plist>
 PLIST
