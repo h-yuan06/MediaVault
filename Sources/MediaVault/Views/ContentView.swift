@@ -134,9 +134,9 @@ struct ContentView: View {
         .onAppear {
             expandedGroups = Set(store.groups.map { $0.id })
         }
-        .onChange(of: store.groups) { groups in
-            // Auto-expand any newly added group
-            for group in groups where !expandedGroups.contains(group.id) {
+        .onChange(of: store.groups) { oldGroups, newGroups in
+            let oldIds = Set(oldGroups.map { $0.id })
+            for group in newGroups where !oldIds.contains(group.id) {
                 expandedGroups.insert(group.id)
             }
         }
