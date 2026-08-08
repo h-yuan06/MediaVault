@@ -8,6 +8,8 @@ struct ContentView: View {
     @EnvironmentObject var tools: ToolChecker
     @EnvironmentObject var updater: AutoUpdater
 
+    @Environment(\.openWindow) private var openWindow
+
     @State private var selectedSourceIds: Set<UUID> = []
     @State private var showingAddSheet = false
     @State private var showingToolAlert = false
@@ -316,6 +318,13 @@ struct ContentView: View {
                 .padding(.trailing, 4)
                 .help(privateUnlocked ? "Lock private groups" : "Unlock private groups")
             }
+
+            Button(action: { openWindow(id: "player") }) {
+                Image(systemName: "play.rectangle")
+            }
+            .buttonStyle(.plain)
+            .padding(.trailing, 4)
+            .help("Open Media Library")
 
             if scheduler.isRunning {
                 ProgressView().scaleEffect(0.6)

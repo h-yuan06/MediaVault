@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MediaVault Library</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0f0f0f; --bg2: #1a1a1a; --bg3: #252525; --bg4: #333333;
+    --text: #f1f1f1; --text2: #aaaaaa; --text3: #666666; --border: #2a2a2a;
+    --sidebar-w: 220px; --header-h: 56px;
+    --radius: 10px; --radius-sm: 6px;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  body.private-mode {
+    --bg: #100808; --bg2: #1a0f0f; --bg3: #251515; --bg4: #331f1f;
+    --text: #f5eeee; --text2: #aa8888; --text3: #775555; --border: #2a1515;
+  }
+
+  body { font-family: var(--font); background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+  header { height: var(--header-h); background: var(--bg); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 16px; gap: 16px; flex-shrink: 0; z-index: 100; }
+  .logo { display: flex; align-items: center; gap: 8px; font-size: 17px; font-weight: 700; color: var(--text); cursor: pointer; flex-shrink: 0; letter-spacing: -0.3px; }
+  .private-badge { display: none; align-items: center; gap: 5px; background: #3a1010; border: 1px solid #5a1818; color: #ff8888; font-size: 10px; font-weight: 700; padding: 3px 9px; border-radius: 20px; letter-spacing: 0.08em; text-transform: uppercase; }
+  body.private-mode .private-badge { display: flex; }
+  .search-bar { flex: 1; max-width: 520px; margin: 0 auto; display: flex; }
+  .search-bar input { flex: 1; background: var(--bg3); border: 1px solid var(--border); border-right: none; border-radius: var(--radius-sm) 0 0 var(--radius-sm); color: var(--text); font-size: 13px; padding: 7px 13px; outline: none; transition: border-color 0.15s; }
+  .search-bar input:focus { border-color: var(--bg4); }
+  .search-bar input::placeholder { color: var(--text3); }
+  .search-bar button { background: var(--bg3); border: 1px solid var(--border); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; color: var(--text3); padding: 7px 14px; cursor: pointer; font-size: 14px; transition: background 0.15s; }
+  .search-bar button:hover { background: var(--bg4); color: var(--text2); }
+
+  .layout { display: flex; flex: 1; overflow: hidden; }
+
+  .sidebar { width: var(--sidebar-w); background: var(--bg); border-right: 1px solid var(--border); overflow-y: auto; flex-shrink: 0; padding: 8px 0 48px; scrollbar-width: thin; scrollbar-color: var(--bg4) transparent; }
+  .sidebar-section { padding: 4px 0; }
+  .sidebar-section + .sidebar-section { border-top: 1px solid var(--border); margin-top: 4px; padding-top: 8px; }
+  .sidebar-label { font-size: 10px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.1em; padding: 6px 14px 4px; }
+  .sidebar-item { display: flex; align-items: center; gap: 10px; padding: 7px 14px; cursor: pointer; font-size: 13px; color: var(--text2); transition: background 0.1s, color 0.1s; user-select: none; }
+  .sidebar-item:hover { background: var(--bg3); color: var(--text); }
+  .sidebar-item.active { background: var(--bg3); color: var(--text); font-weight: 600; }
+  .sidebar-item svg { flex-shrink: 0; }
+  .ch-avatar { width: 22px; height: 22px; border-radius: 50%; font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; color: #fff; flex-shrink: 0; }
+
+  .main { flex: 1; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--bg4) transparent; }
+
+  /* Sort bar */
+  .sort-bar { display: flex; gap: 6px; padding: 14px 20px 0; flex-wrap: wrap; align-items: center; }
+  .sort-chip { background: transparent; border: 1px solid var(--bg4); border-radius: 20px; color: var(--text2); font-size: 12px; font-weight: 500; padding: 5px 13px; cursor: pointer; transition: background 0.12s, color 0.12s, border-color 0.12s; white-space: nowrap; display: flex; align-items: center; gap: 5px; }
+  .sort-chip:hover { border-color: var(--text3); color: var(--text); }
+  .sort-chip.active { background: var(--text); color: var(--bg); border-color: var(--text); font-weight: 600; }
+  .sort-chip.liked-chip.active { background: #b91c1c; border-color: #b91c1c; color: #fff; }
+  .chip-divider { width: 1px; height: 18px; background: var(--border); margin: 0 2px; flex-shrink: 0; }
+
+  /* Grid */
+  #home-view { padding: 12px 20px 20px; }
+  .video-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 18px 14px; margin-top: 14px; }
+  .video-card { cursor: pointer; }
+  .video-card:hover .thumb-placeholder, .video-card:hover .thumb-wrapper img { filter: brightness(0.8); }
+  .thumb-wrapper { position: relative; width: 100%; aspect-ratio: 16/9; border-radius: var(--radius); overflow: hidden; background: var(--bg3); margin-bottom: 9px; }
+  .thumb-wrapper img { width: 100%; height: 100%; object-fit: cover; display: block; transition: filter 0.15s; }
+  .thumb-placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; transition: filter 0.15s; }
+  .duration-badge { position: absolute; bottom: 5px; right: 5px; background: rgba(0,0,0,0.82); color: #fff; font-size: 11px; font-weight: 600; padding: 2px 5px; border-radius: 3px; }
+  .liked-badge { position: absolute; top: 6px; right: 6px; color: #ef4444; font-size: 14px; line-height: 1; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.7)); }
+
+  /* Album card */
+  .album-thumb-wrap { position: relative; width: 100%; aspect-ratio: 16/9; margin-bottom: 9px; }
+  .album-stack { position: relative; width: 100%; height: 100%; }
+  .album-stack .stack-back2 { position: absolute; top: 0; left: 6px; right: -6px; bottom: -6px; border-radius: var(--radius); overflow: hidden; opacity: 0.4; }
+  .album-stack .stack-back1 { position: absolute; top: 0; left: 3px; right: -3px; bottom: -3px; border-radius: var(--radius); overflow: hidden; opacity: 0.65; }
+  .album-stack .stack-front { position: absolute; inset: 0; border-radius: var(--radius); overflow: hidden; }
+  .album-count-badge { position: absolute; bottom: 5px; right: 5px; background: rgba(0,0,0,0.82); color: #fff; font-size: 11px; font-weight: 600; padding: 2px 5px; border-radius: 3px; display: flex; align-items: center; gap: 4px; }
+
+  .video-info { display: flex; gap: 9px; }
+  .ch-avatar-sm { width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; color: #fff; margin-top: 2px; }
+  .video-meta { flex: 1; min-width: 0; }
+  .video-title { font-size: 13px; font-weight: 600; line-height: 1.35; color: var(--text); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: 3px; }
+  .video-channel { font-size: 11px; color: var(--text3); margin-bottom: 1px; }
+  .video-stats { font-size: 11px; color: var(--text3); }
+
+  /* Player */
+  #player-view { display: none; padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
+  .player-layout { display: grid; grid-template-columns: 1fr 340px; gap: 24px; }
+  @media (max-width: 860px) { .player-layout { grid-template-columns: 1fr; } .up-next { display: none; } }
+  .player-video-wrap { position: relative; width: 100%; aspect-ratio: 16/9; background: #000; border-radius: var(--radius); overflow: hidden; margin-bottom: 13px; }
+  .player-video-wrap video { width: 100%; height: 100%; display: block; }
+  .player-title { font-size: 17px; font-weight: 700; line-height: 1.3; margin-bottom: 10px; }
+  .player-channel-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .player-ch-avatar { width: 36px; height: 36px; border-radius: 50%; font-size: 14px; font-weight: 700; display: flex; align-items: center; justify-content: center; color: #fff; flex-shrink: 0; }
+  .player-ch-name { font-size: 13px; font-weight: 600; }
+  .player-ch-meta { font-size: 11px; color: var(--text3); }
+  .player-actions { display: flex; gap: 7px; margin-bottom: 13px; flex-wrap: wrap; }
+  .action-pill { display: flex; align-items: center; gap: 5px; background: var(--bg3); border: 1px solid var(--border); border-radius: 20px; color: var(--text); font-size: 12px; font-weight: 600; padding: 6px 13px; cursor: pointer; transition: background 0.12s; }
+  .action-pill:hover { background: var(--bg4); }
+  .action-pill.liked { background: #3f0f0f; border-color: #b91c1c; color: #ef4444; }
+  .player-desc { background: var(--bg2); border-radius: var(--radius-sm); padding: 11px 13px; font-size: 12px; color: var(--text2); line-height: 1.6; }
+  .player-desc .desc-stats { font-weight: 700; color: var(--text); margin-bottom: 5px; }
+  .up-next-label { font-size: 13px; font-weight: 700; margin-bottom: 11px; }
+  .up-next-list { display: flex; flex-direction: column; gap: 7px; }
+  .up-next-card { display: flex; gap: 8px; cursor: pointer; border-radius: var(--radius-sm); padding: 4px; transition: background 0.1s; }
+  .up-next-card:hover { background: var(--bg3); }
+  .up-next-thumb { width: 116px; aspect-ratio: 16/9; border-radius: var(--radius-sm); overflow: hidden; flex-shrink: 0; background: var(--bg3); position: relative; }
+  .up-next-thumb .thumb-placeholder { height: 100%; }
+  .up-next-info { flex: 1; min-width: 0; padding-top: 1px; }
+  .up-next-title { font-size: 12px; font-weight: 600; line-height: 1.3; color: var(--text); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: 3px; }
+  .up-next-channel { font-size: 11px; color: var(--text3); }
+
+  /* Album lightbox */
+  #album-view { display: none; position: fixed; inset: 0; z-index: 300; background: rgba(0,0,0,0.96); flex-direction: column; }
+  #album-view.open { display: flex; }
+  .album-header { display: flex; align-items: center; gap: 12px; padding: 14px 20px; border-bottom: 1px solid var(--border); flex-shrink: 0; background: var(--bg); }
+  .album-back { background: transparent; border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text2); padding: 5px 12px; font-size: 12px; cursor: pointer; transition: background 0.1s; display: flex; align-items: center; gap: 6px; }
+  .album-back:hover { background: var(--bg3); color: var(--text); }
+  .album-header-title { font-size: 14px; font-weight: 700; flex: 1; }
+  .album-header-meta { font-size: 12px; color: var(--text3); }
+  .album-liked-toggle { display: flex; align-items: center; gap: 5px; background: transparent; border: 1px solid var(--border); border-radius: 20px; color: var(--text2); font-size: 12px; font-weight: 500; padding: 5px 12px; cursor: pointer; transition: all 0.12s; }
+  .album-liked-toggle:hover { border-color: var(--text3); color: var(--text); }
+  .album-liked-toggle.active { background: #3f0f0f; border-color: #b91c1c; color: #ef4444; }
+  .album-main { flex: 1; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; }
+  .album-photo { max-width: 100%; max-height: 100%; object-fit: contain; display: block; border-radius: 4px; }
+  .album-photo-placeholder { width: min(70vw, 900px); aspect-ratio: 4/3; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--text3); border-radius: var(--radius); }
+  .album-nav { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(0,0,0,0.55); border: 1px solid rgba(255,255,255,0.12); border-radius: 50%; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--text); font-size: 18px; transition: background 0.12s, opacity 0.12s; user-select: none; }
+  .album-nav:hover { background: rgba(255,255,255,0.15); }
+  .album-nav.disabled { opacity: 0.2; pointer-events: none; }
+  .album-nav-prev { left: 16px; }
+  .album-nav-next { right: 16px; }
+  .album-photo-actions { position: absolute; top: 12px; right: 16px; display: flex; gap: 8px; }
+  .photo-action-btn { background: rgba(0,0,0,0.55); border: 1px solid rgba(255,255,255,0.12); border-radius: 20px; color: var(--text2); font-size: 12px; font-weight: 600; padding: 5px 12px; cursor: pointer; display: flex; align-items: center; gap: 5px; transition: background 0.12s, color 0.12s; }
+  .photo-action-btn:hover { background: rgba(255,255,255,0.15); color: var(--text); }
+  .photo-action-btn.liked { background: rgba(185,28,28,0.4); border-color: #b91c1c; color: #ef4444; }
+  .album-counter { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.6); border-radius: 20px; color: var(--text2); font-size: 12px; padding: 4px 12px; }
+  .album-filmstrip { flex-shrink: 0; background: var(--bg2); border-top: 1px solid var(--border); padding: 10px 16px; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: thin; scrollbar-color: var(--bg4) transparent; }
+  .filmstrip-thumb { width: 64px; height: 48px; border-radius: 5px; overflow: hidden; flex-shrink: 0; cursor: pointer; position: relative; border: 2px solid transparent; transition: border-color 0.12s; }
+  .filmstrip-thumb.active { border-color: var(--text); }
+  .filmstrip-thumb .thumb-placeholder { height: 100%; border-radius: 3px; }
+  .filmstrip-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .filmstrip-thumb .liked-dot { position: absolute; bottom: 2px; right: 2px; width: 8px; height: 8px; background: #ef4444; border-radius: 50%; }
+
+  /* Loading */
+  #loading-view { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: 14px; color: var(--text3); font-size: 13px; }
+  .spinner { width: 28px; height: 28px; border: 2px solid var(--bg4); border-top-color: var(--text3); border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Empty state */
+  .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 300px; gap: 10px; color: var(--text3); }
+  .empty-state svg { opacity: 0.3; }
+
+  /* Private toggle */
+  .private-toggle { position: fixed; bottom: 14px; left: 14px; background: var(--bg3); border: 1px solid var(--border); border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--text3); transition: opacity 0.15s, transform 0.15s; z-index: 200; opacity: 0.4; }
+  .private-toggle:hover { opacity: 1; transform: scale(1.08); }
+  body.private-mode .private-toggle { background: #3a1010; border-color: #5a1818; color: #ff8888; opacity: 0.75; }
+
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo" onclick="goHome()">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style="opacity:.85"><path d="M4 4h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4zM4 10h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4zM4 16h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4z"/></svg>
+    MediaVault
+  </div>
+  <div class="private-badge">
+    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
+    Private
+  </div>
+  <div class="search-bar">
+    <input type="text" id="search-input" placeholder="Search your library…" oninput="handleSearch(this.value)">
+    <button>⌕</button>
+  </div>
+</header>
+
+<div class="layout">
+  <nav class="sidebar" id="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-item active" id="home-btn" onclick="goHome(); setActive(this)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+        Home
+      </div>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-label">Channels</div>
+      <div id="channel-list"></div>
+    </div>
+  </nav>
+
+  <main class="main">
+    <div id="loading-view">
+      <div class="spinner"></div>
+      Scanning library…
+    </div>
+
+    <div id="home-view" style="display:none">
+      <div class="sort-bar">
+        <button class="sort-chip active" onclick="setSort('latest', this)">Latest</button>
+        <button class="sort-chip" onclick="setSort('oldest', this)">Oldest</button>
+        <button class="sort-chip" onclick="setSort('largest', this)">Longest</button>
+        <button class="sort-chip" onclick="setSort('smallest', this)">Shortest</button>
+        <button class="sort-chip" onclick="setSort('az', this)">A – Z</button>
+        <div class="chip-divider"></div>
+        <button class="sort-chip liked-chip" id="liked-chip" onclick="toggleLikedFilter(this)">♥ Liked</button>
+      </div>
+      <div class="video-grid" id="video-grid"></div>
+    </div>
+
+    <div id="player-view">
+      <div class="player-layout">
+        <div class="player-main">
+          <div class="player-video-wrap">
+            <video id="main-video" controls autoplay></video>
+          </div>
+          <div class="player-title" id="player-title"></div>
+          <div class="player-channel-row">
+            <div class="player-ch-avatar" id="player-avatar"></div>
+            <div>
+              <div class="player-ch-name" id="player-ch-name"></div>
+              <div class="player-ch-meta" id="player-ch-meta"></div>
+            </div>
+          </div>
+          <div class="player-actions">
+            <button class="action-pill" id="like-btn" onclick="toggleVideoLike()">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+              Like
+            </button>
+            <button class="action-pill" onclick="showInFinder(currentVideo && currentVideo.path)">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M20 6h-8l-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2z"/></svg>
+              Show in Finder
+            </button>
+          </div>
+          <div class="player-desc">
+            <div class="desc-stats" id="desc-stats"></div>
+            <div id="desc-text"></div>
+          </div>
+        </div>
+        <div class="up-next">
+          <div class="up-next-label">Up next</div>
+          <div class="up-next-list" id="up-next-list"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Album lightbox -->
+<div id="album-view">
+  <div class="album-header">
+    <button class="album-back" onclick="closeAlbum()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+      Back
+    </button>
+    <div>
+      <div class="album-header-title" id="album-title"></div>
+      <div class="album-header-meta" id="album-meta"></div>
+    </div>
+    <button class="album-liked-toggle" id="album-liked-toggle" onclick="toggleAlbumLikedFilter()">♥ Liked only</button>
+  </div>
+  <div class="album-main">
+    <div class="album-photo-actions">
+      <button class="photo-action-btn" id="photo-like-btn" onclick="togglePhotoLike()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+        Like
+      </button>
+      <button class="photo-action-btn" id="photo-finder-btn" onclick="showInFinder(albumPhotos[albumPhotoIndex] && albumPhotos[albumPhotoIndex].path)">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M20 6h-8l-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2z"/></svg>
+        Finder
+      </button>
+    </div>
+    <div class="album-counter" id="album-counter"></div>
+    <button class="album-nav album-nav-prev" id="nav-prev" onclick="albumNav(-1)">‹</button>
+    <div id="album-photo-wrap" style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;padding:20px 80px;"></div>
+    <button class="album-nav album-nav-next" id="nav-next" onclick="albumNav(1)">›</button>
+  </div>
+  <div class="album-filmstrip" id="album-filmstrip"></div>
+</div>
+
+<button class="private-toggle" onclick="togglePrivateMode()" title="Private mode">
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
+</button>
+
+<script>
+// ── Native bridge ──────────────────────────────────────────────────
+// All communication to Swift goes through this. In WKWebView the real
+// window.webkit object is injected. Outside the app (browser testing),
+// calls are no-ops so the UI still renders with injected mock data.
+const native = {
+  post(msg) {
+    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.native) {
+      window.webkit.messageHandlers.native.postMessage(msg);
+    }
+  },
+  showInFinder(path) { this.post({ action: "showInFinder", path }); },
+  setLiked(path, liked) { this.post({ action: "setLiked", path, liked }); },
+  authenticate() { this.post({ action: "authenticate" }); },
+};
+
+// ── Helpers ────────────────────────────────────────────────────────
+const NOW = Date.now() / 1000;
+function relativeDate(t) {
+  const d = Math.round((NOW - t) / 86400);
+  if (d < 1)  return "Today";
+  if (d < 7)  return d + "d ago";
+  if (d < 30) return Math.round(d/7) + "w ago";
+  if (d < 365) return Math.round(d/30) + "mo ago";
+  return Math.round(d/365) + "y ago";
+}
+function fmtSize(bytes) {
+  if (bytes > 1e9) return (bytes/1e9).toFixed(1) + " GB";
+  if (bytes > 1e6) return (bytes/1e6).toFixed(0) + " MB";
+  return (bytes/1e3).toFixed(0) + " KB";
+}
+function fileURL(path) {
+  return "file://" + encodeURI(path).replace(/#/g, "%23");
+}
+
+// ── State ──────────────────────────────────────────────────────────
+let publicItems  = [];
+let privateItems = [];
+let isPrivate    = false;
+let items        = [];        // current active set
+let currentVideo = null;
+let activeChannel = "all";
+let currentSort   = "latest";
+let likedFilterOn = false;
+// Album state
+let currentAlbum    = null;
+let albumPhotos     = [];
+let albumPhotoIndex = 0;
+let albumLikedOnly  = false;
+
+// liked state: JS mirrors what xattr says; toggling updates both
+const likedPaths = new Set(); // keyed by file path
+
+function isLiked(path) { return likedPaths.has(path); }
+function setLiked(path, val) {
+  val ? likedPaths.add(path) : likedPaths.delete(path);
+  native.setLiked(path, val);
+}
+function albumHasLike(a) { return a.photos && a.photos.some(p => isLiked(p.path)); }
+function isItemLiked(i)  { return i.type === "album" ? albumHasLike(i) : isLiked(i.path); }
+
+// ── Called by Swift after scanning ────────────────────────────────
+// payload = { public: [...], private: [...] }
+// Each item: { type, id, title, channel, channelId, fileSize, downloadedAt, path, color, liked, photos? }
+// Each photo: { id, path, downloadedAt, liked }
+function loadLibrary(payload) {
+  publicItems  = payload.public  || [];
+  privateItems = payload.private || [];
+
+  // Seed liked paths from injected data
+  function seedLiked(list) {
+    list.forEach(i => {
+      if (i.liked) likedPaths.add(i.path);
+      if (i.photos) i.photos.forEach(p => { if (p.liked) likedPaths.add(p.path); });
+    });
+  }
+  seedLiked(publicItems);
+  seedLiked(privateItems);
+
+  items = isPrivate ? privateItems : publicItems;
+  document.getElementById("loading-view").style.display = "none";
+  document.getElementById("home-view").style.display = "block";
+  buildChannelList();
+  renderGrid(filteredItems());
+}
+
+// ── Sort / filter ──────────────────────────────────────────────────
+function applySort(list) {
+  const arr = [...list];
+  switch (currentSort) {
+    case "latest":   return arr.sort((a,b) => b.downloadedAt - a.downloadedAt);
+    case "oldest":   return arr.sort((a,b) => a.downloadedAt - b.downloadedAt);
+    case "largest":  return arr.sort((a,b) => b.fileSize - a.fileSize);
+    case "smallest": return arr.sort((a,b) => a.fileSize - b.fileSize);
+    case "az":       return arr.sort((a,b) => a.title.localeCompare(b.title));
+  }
+  return arr;
+}
+function filteredItems() {
+  let base = activeChannel === "all" ? items : items.filter(i => i.channelId === activeChannel);
+  if (likedFilterOn) base = base.filter(i => isItemLiked(i));
+  return applySort(base);
+}
+function setSort(key, el) {
+  currentSort = key;
+  document.querySelectorAll(".sort-chip:not(.liked-chip)").forEach(c => c.classList.remove("active"));
+  el.classList.add("active");
+  renderGrid(filteredItems());
+}
+function toggleLikedFilter(el) {
+  likedFilterOn = !likedFilterOn;
+  el.classList.toggle("active", likedFilterOn);
+  renderGrid(filteredItems());
+}
+
+// ── Channel list ───────────────────────────────────────────────────
+function buildChannelList() {
+  const seen = new Map();
+  items.forEach(i => { if (!seen.has(i.channelId)) seen.set(i.channelId, i); });
+  document.getElementById("channel-list").innerHTML = [...seen.values()].map(i => `
+    <div class="sidebar-item ${activeChannel === i.channelId ? "active" : ""}"
+         onclick="filterChannel('${i.channelId}', this)">
+      <div class="ch-avatar" style="background:${i.color}">${i.channel[0]}</div>
+      ${escHtml(i.channel)}
+    </div>`).join("");
+}
+
+// ── Grid rendering ─────────────────────────────────────────────────
+function renderGrid(list) {
+  const grid = document.getElementById("video-grid");
+  if (list.length === 0) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-8 12.5v-9l6 4.5-6 4.5z"/></svg>
+      <span>No items found</span>
+    </div>`;
+    return;
+  }
+  grid.innerHTML = list.map(i => i.type === "album" ? albumCardHTML(i) : videoCardHTML(i)).join("");
+}
+
+function videoCardHTML(v) {
+  const liked = isLiked(v.path);
+  const thumb = v.path
+    ? `<video src="${fileURL(v.path)}" preload="metadata" style="width:100%;height:100%;object-fit:cover" onloadedmetadata="snapThumb(this)"></video>`
+    : `<div class="thumb-placeholder" style="background:linear-gradient(135deg,${v.color}28,${v.color}50)">
+         <svg width="44" height="44" viewBox="0 0 24 24" fill="${v.color}" opacity="0.7"><path d="M8 5v14l11-7z"/></svg>
+       </div>`;
+  return `<div class="video-card" onclick="playVideo('${v.id}')">
+    <div class="thumb-wrapper">
+      ${thumb}
+      <span class="duration-badge">${fmtSize(v.fileSize)}</span>
+      ${liked ? '<span class="liked-badge">♥</span>' : ''}
+    </div>
+    <div class="video-info">
+      <div class="ch-avatar-sm" style="background:${v.color}">${v.channel[0]}</div>
+      <div class="video-meta">
+        <div class="video-title">${escHtml(v.title)}</div>
+        <div class="video-channel">${escHtml(v.channel)}</div>
+        <div class="video-stats">${relativeDate(v.downloadedAt)}</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+const photoIcon = `<svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" opacity="0.5"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>`;
+
+function albumCardHTML(a) {
+  const liked = albumHasLike(a);
+  const p = a.photos || [];
+  const thumbFor = (ph, op) => ph
+    ? `<img src="${fileURL(ph.path)}" style="width:100%;height:100%;object-fit:cover">`
+    : `<div style="background:linear-gradient(135deg,${a.color}28,${a.color}55);width:100%;height:100%;display:flex;align-items:center;justify-content:center;opacity:${op}">${photoIcon}</div>`;
+  return `<div class="video-card" onclick="openAlbum('${a.id}')">
+    <div class="album-thumb-wrap">
+      <div class="album-stack">
+        ${p.length > 2 ? `<div class="stack-back2">${thumbFor(p[2], 0.4)}</div>` : ''}
+        ${p.length > 1 ? `<div class="stack-back1">${thumbFor(p[1], 0.65)}</div>` : ''}
+        <div class="stack-front">${thumbFor(p[0], 1)}</div>
+      </div>
+      <span class="album-count-badge">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
+        ${p.length}
+      </span>
+      ${liked ? '<span class="liked-badge">♥</span>' : ''}
+    </div>
+    <div class="video-info">
+      <div class="ch-avatar-sm" style="background:${a.color}">${a.channel[0]}</div>
+      <div class="video-meta">
+        <div class="video-title">${escHtml(a.title)}</div>
+        <div class="video-channel">${escHtml(a.channel)}</div>
+        <div class="video-stats">${p.length} photos · ${relativeDate(a.downloadedAt)}</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function snapThumb(videoEl) {
+  videoEl.currentTime = Math.min(2, videoEl.duration * 0.1);
+  videoEl.addEventListener("seeked", function onSeeked() {
+    videoEl.removeEventListener("seeked", onSeeked);
+    const c = document.createElement("canvas");
+    c.width = videoEl.videoWidth; c.height = videoEl.videoHeight;
+    c.getContext("2d").drawImage(videoEl, 0, 0);
+    const img = document.createElement("img");
+    img.src = c.toDataURL();
+    img.style.cssText = "width:100%;height:100%;object-fit:cover;position:absolute;top:0;left:0";
+    videoEl.parentNode.insertBefore(img, videoEl);
+    videoEl.style.display = "none";
+  }, { once: true });
+}
+
+// ── Video player ───────────────────────────────────────────────────
+function playVideo(id) {
+  const v = items.find(x => x.id === id);
+  if (!v) return;
+  currentVideo = v;
+  document.getElementById("home-view").style.display = "none";
+  document.getElementById("player-view").style.display = "block";
+
+  const vid = document.getElementById("main-video");
+  vid.src = fileURL(v.path);
+  document.getElementById("player-title").textContent = v.title;
+  const av = document.getElementById("player-avatar");
+  av.textContent = v.channel[0]; av.style.background = v.color;
+  document.getElementById("player-ch-name").textContent = v.channel;
+  document.getElementById("player-ch-meta").textContent = fmtSize(v.fileSize);
+  document.getElementById("desc-stats").textContent = relativeDate(v.downloadedAt);
+  document.getElementById("desc-text").textContent = "Downloaded via MediaVault";
+  updateVideoLikeBtn();
+
+  const others = applySort(items.filter(x => x.id !== v.id && x.type === "video")).slice(0, 12);
+  document.getElementById("up-next-list").innerHTML = others.map(o => `
+    <div class="up-next-card" onclick="playVideo('${o.id}')">
+      <div class="up-next-thumb">
+        ${o.path
+          ? `<video src="${fileURL(o.path)}" preload="metadata" style="width:100%;height:100%;object-fit:cover" onloadedmetadata="snapThumb(this)"></video>`
+          : `<div class="thumb-placeholder" style="background:linear-gradient(135deg,${o.color}28,${o.color}50);height:100%;display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="${o.color}" opacity="0.7"><path d="M8 5v14l11-7z"/></svg></div>`}
+        <span class="duration-badge" style="position:absolute;bottom:3px;right:3px">${fmtSize(o.fileSize)}</span>
+      </div>
+      <div class="up-next-info">
+        <div class="up-next-title">${escHtml(o.title)}</div>
+        <div class="up-next-channel">${escHtml(o.channel)}</div>
+      </div>
+    </div>`).join("");
+  document.querySelector(".main").scrollTo(0, 0);
+}
+
+function updateVideoLikeBtn() {
+  if (!currentVideo) return;
+  const liked = isLiked(currentVideo.path);
+  const btn = document.getElementById("like-btn");
+  btn.className = "action-pill" + (liked ? " liked" : "");
+  btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg> ${liked ? "Liked" : "Like"}`;
+}
+
+function toggleVideoLike() {
+  if (!currentVideo) return;
+  setLiked(currentVideo.path, !isLiked(currentVideo.path));
+  updateVideoLikeBtn();
+  if (likedFilterOn) renderGrid(filteredItems());
+}
+
+// ── Album lightbox ─────────────────────────────────────────────────
+function openAlbum(id) {
+  const a = items.find(x => x.id === id);
+  if (!a) return;
+  currentAlbum = a; albumLikedOnly = false;
+  document.getElementById("album-liked-toggle").classList.remove("active");
+  document.getElementById("album-title").textContent = a.title;
+  document.getElementById("album-meta").textContent = `${a.channel} · ${(a.photos||[]).length} photos · ${relativeDate(a.downloadedAt)}`;
+  setAlbumPhotos(a.photos || [], 0);
+  document.getElementById("album-view").classList.add("open");
+  document.addEventListener("keydown", albumKeyHandler);
+}
+function closeAlbum() {
+  document.getElementById("album-view").classList.remove("open");
+  document.removeEventListener("keydown", albumKeyHandler);
+  currentAlbum = null;
+  renderGrid(filteredItems());
+}
+function albumKeyHandler(e) {
+  if (e.key === "ArrowLeft")  albumNav(-1);
+  if (e.key === "ArrowRight") albumNav(1);
+  if (e.key === "Escape")     closeAlbum();
+}
+function setAlbumPhotos(photos, idx) {
+  albumPhotos = photos;
+  albumPhotoIndex = Math.max(0, Math.min(idx, photos.length - 1));
+  renderAlbumPhoto(); renderFilmstrip();
+}
+function albumNav(dir) {
+  const newIdx = albumPhotoIndex + dir;
+  if (newIdx < 0 || newIdx >= albumPhotos.length) return;
+  albumPhotoIndex = newIdx;
+  renderAlbumPhoto(); scrollFilmstripTo(albumPhotoIndex);
+}
+function renderAlbumPhoto() {
+  const p = albumPhotos[albumPhotoIndex];
+  if (!p) return;
+  const wrap = document.getElementById("album-photo-wrap");
+  wrap.innerHTML = p.path
+    ? `<img class="album-photo" src="${fileURL(p.path)}">`
+    : `<div class="album-photo-placeholder" style="background:linear-gradient(135deg,${currentAlbum?.color || '#333'}22,${currentAlbum?.color || '#333'}44)">
+         <svg width="64" height="64" viewBox="0 0 24 24" fill="currentColor" opacity="0.2"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
+         <span style="font-size:12px">Photo placeholder</span>
+       </div>`;
+  document.getElementById("album-counter").textContent = `${albumPhotoIndex+1} / ${albumPhotos.length}`;
+  document.getElementById("nav-prev").classList.toggle("disabled", albumPhotoIndex === 0);
+  document.getElementById("nav-next").classList.toggle("disabled", albumPhotoIndex === albumPhotos.length - 1);
+  const liked = isLiked(p.path);
+  const btn = document.getElementById("photo-like-btn");
+  btn.className = "photo-action-btn" + (liked ? " liked" : "");
+  btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg> ${liked ? "Liked" : "Like"}`;
+}
+function renderFilmstrip() {
+  const photos = albumLikedOnly ? albumPhotos.filter(p => isLiked(p.path)) : albumPhotos;
+  document.getElementById("album-filmstrip").innerHTML = photos.map(p => {
+    const realIdx = albumPhotos.indexOf(p);
+    return `<div class="filmstrip-thumb ${realIdx === albumPhotoIndex ? "active" : ""}" onclick="jumpToPhoto(${realIdx})">
+      ${p.path
+        ? `<img src="${fileURL(p.path)}">`
+        : `<div class="thumb-placeholder" style="background:linear-gradient(135deg,${currentAlbum?.color || '#333'}40,${currentAlbum?.color || '#333'}70);height:100%;display:flex;align-items:center;justify-content:center">${photoIcon}</div>`}
+      ${isLiked(p.path) ? '<div class="liked-dot"></div>' : ''}
+    </div>`;
+  }).join("");
+}
+function scrollFilmstripTo(idx) {
+  const strip = document.getElementById("album-filmstrip");
+  const thumb = strip.children[idx];
+  if (thumb) thumb.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+}
+function jumpToPhoto(realIdx) {
+  albumPhotoIndex = realIdx; renderAlbumPhoto(); renderFilmstrip();
+}
+function togglePhotoLike() {
+  const p = albumPhotos[albumPhotoIndex];
+  if (!p) return;
+  setLiked(p.path, !isLiked(p.path));
+  renderAlbumPhoto(); renderFilmstrip();
+}
+function toggleAlbumLikedFilter() {
+  albumLikedOnly = !albumLikedOnly;
+  document.getElementById("album-liked-toggle").classList.toggle("active", albumLikedOnly);
+  if (albumLikedOnly) {
+    const likedPhotos = albumPhotos.filter(p => isLiked(p.path));
+    if (!likedPhotos.length) { albumLikedOnly = false; document.getElementById("album-liked-toggle").classList.remove("active"); }
+    else if (!isLiked(albumPhotos[albumPhotoIndex]?.path)) {
+      albumPhotoIndex = albumPhotos.indexOf(likedPhotos[0]);
+      renderAlbumPhoto();
+    }
+  }
+  renderFilmstrip();
+}
+
+// ── Navigation ─────────────────────────────────────────────────────
+function goHome() {
+  activeChannel = "all";
+  document.getElementById("home-view").style.display = "block";
+  document.getElementById("player-view").style.display = "none";
+  const vid = document.getElementById("main-video");
+  vid.pause(); vid.src = "";
+  document.getElementById("search-input").value = "";
+  currentVideo = null;
+  buildChannelList(); renderGrid(filteredItems());
+  setActive(document.getElementById("home-btn"));
+}
+function filterChannel(channelId, el) {
+  activeChannel = channelId;
+  document.getElementById("home-view").style.display = "block";
+  document.getElementById("player-view").style.display = "none";
+  const vid = document.getElementById("main-video");
+  vid.pause(); vid.src = "";
+  currentVideo = null;
+  renderGrid(filteredItems()); setActive(el);
+}
+function handleSearch(q) {
+  q = q.toLowerCase().trim();
+  let base = activeChannel === "all" ? items : items.filter(i => i.channelId === activeChannel);
+  if (likedFilterOn) base = base.filter(i => isItemLiked(i));
+  renderGrid(applySort(q ? base.filter(i => i.title.toLowerCase().includes(q) || i.channel.toLowerCase().includes(q)) : base));
+}
+function setActive(el) {
+  document.querySelectorAll(".sidebar-item").forEach(e => e.classList.remove("active"));
+  el?.classList.add("active");
+}
+function showInFinder(path) {
+  if (path) native.showInFinder(path);
+}
+
+// ── Private mode ───────────────────────────────────────────────────
+// enterPrivateMode() is called by Swift after successful Touch ID / password auth
+function togglePrivateMode() {
+  if (isPrivate) {
+    exitPrivateMode();
+  } else {
+    native.authenticate();
+  }
+}
+function enterPrivateMode() {
+  isPrivate = true; items = privateItems;
+  document.body.classList.add("private-mode");
+  activeChannel = "all"; currentVideo = null;
+  buildChannelList(); renderGrid(filteredItems());
+  document.getElementById("player-view").style.display = "none";
+  document.getElementById("home-view").style.display = "block";
+  setActive(document.getElementById("home-btn"));
+}
+function exitPrivateMode() {
+  isPrivate = false; items = publicItems;
+  document.body.classList.remove("private-mode");
+  activeChannel = "all"; currentVideo = null;
+  const vid = document.getElementById("main-video");
+  vid.pause(); vid.src = "";
+  document.getElementById("player-view").style.display = "none";
+  document.getElementById("home-view").style.display = "block";
+  document.getElementById("search-input").value = "";
+  buildChannelList(); renderGrid(filteredItems());
+  setActive(document.getElementById("home-btn"));
+}
+
+// ── Utilities ──────────────────────────────────────────────────────
+function escHtml(s) {
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+</script>
+</body>
+</html>

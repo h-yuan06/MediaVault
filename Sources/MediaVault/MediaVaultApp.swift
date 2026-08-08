@@ -28,6 +28,12 @@ struct MediaVaultApp: App {
             }
         }
 
+        Window("Media Library", id: "player") {
+            PlayerWindowView()
+                .environmentObject(store)
+        }
+        .defaultSize(width: 1200, height: 760)
+
         Settings {
             SettingsView()
                 .environmentObject(store)

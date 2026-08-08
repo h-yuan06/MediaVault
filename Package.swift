@@ -7,7 +7,8 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "MediaVault",
-            path: "Sources/MediaVault"
+            path: "Sources/MediaVault",
+            resources: [.process("Resources")]
         )
     ]
 )
