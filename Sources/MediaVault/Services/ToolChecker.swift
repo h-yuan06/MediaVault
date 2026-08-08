@@ -22,6 +22,8 @@ class ToolChecker: ObservableObject {
 
     private static let defaults = UserDefaults.standard
     private static let cachedPathsKey = "toolPaths"
+    private static let lastUpgradeKey = "lastBrewUpgrade"
+    private static let upgradeInterval: TimeInterval = 7 * 24 * 3600
 
     private init() {
         // Restore cached paths immediately so the UI doesn't block on relaunch
@@ -96,6 +98,28 @@ class ToolChecker: ObservableObject {
         process.standardError = Pipe()
         try? process.run()
         process.waitUntilExit()
+    }
+
+    func upgradeIfNeeded() {
+        let last = Self.defaults.object(forKey: Self.lastUpgradeKey) as? Date ?? .distantPast
+        guard Date().timeIntervalSince(last) > Self.upgradeInterval else { return }
+        guard let brew = DependencyInstaller.brewPaths.first(where: {
+            FileManager.default.isExecutableFile(atPath: $0)
+        }) else { return }
+        Self.defaults.set(Date(), forKey: Self.lastUpgradeKey)
+        Task.detached(priority: .background) {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: brew)
+            process.arguments = ["upgrade", "yt-dlp", "ffmpeg", "gallery-dl", "deno"]
+            var env = ProcessInfo.processInfo.environment
+            env["PATH"] = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+            process.environment = env
+            process.standardOutput = Pipe()
+            process.standardError = Pipe()
+            try? process.run()
+            process.waitUntilExit()
+            await MainActor.run { Task { await ToolChecker.shared.check() } }
+        }
     }
 
     var ytdlpPath:    String { ytdlp.path    ?? "/opt/anaconda3/envs/Reddit_Download/bin/yt-dlp" }

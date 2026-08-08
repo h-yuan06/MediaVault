@@ -30,13 +30,15 @@ struct ContentView: View {
                 if store.downloadRootURL == nil {
                     folderPickerPrompt
                 } else if !tools.allAvailable {
-                    toolsSetupView
+                    DependencySetupView()
+                        .environmentObject(tools)
                 } else {
                     mainLayout
                 }
             }
             .onAppear {
                 Task { await tools.check() }
+                tools.upgradeIfNeeded()
             }
         } // VStack
     }
