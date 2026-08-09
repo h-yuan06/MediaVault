@@ -81,7 +81,7 @@ struct SourceDetailView: View {
                         .help("Show in Finder")
 
                         if hasActive {
-                            Button(action: { engine.pause(for: source.id) }) {
+                            Button(action: { engine.pause(for: source.id, store: store) }) {
                                 Label("Pause", systemImage: "pause.circle")
                             }
                             .buttonStyle(.bordered)

@@ -54,13 +54,21 @@ class DownloadEngine: ObservableObject {
         }
     }
 
-    func pause(for sourceId: UUID) {
+    func pause(for sourceId: UUID, store: SourceStore) {
         queue
             .filter { $0.sourceId == sourceId && ($0.status == .downloading || $0.status == .merging || $0.status == .pending) }
             .forEach { item in
                 activeProcesses[item.id]?.terminate()
                 item.status = .paused
             }
+        // Clean up orphaned split-stream temp files so resume doesn't merge truncated streams.
+        // Single-file .part files are left intact — --continue will resume them.
+        if let source = store.sources.first(where: { $0.id == sourceId }),
+           let downloadDir = store.downloadDir(for: source) {
+            Task.detached(priority: .background) {
+                Self.cleanOrphanedStreams(in: downloadDir)
+            }
+        }
     }
 
     func resume(for sourceId: UUID, store: SourceStore) {
@@ -301,6 +309,31 @@ class DownloadEngine: ObservableObject {
         }
     }
 
+    // MARK: - Temp file cleanup
+
+    // yt-dlp split-stream intermediates look like "Title.f251.webm" or "Title.f137.mp4".
+    // These can't be partially resumed and will corrupt the merge if truncated.
+    // Single-file .part files are intentionally left — --continue resumes them.
+    private static func cleanOrphanedStreams(in dir: URL) {
+        let fm = FileManager.default
+        guard let enumerator = fm.enumerator(
+            at: dir,
+            includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        ) else { return }
+
+        // Matches "Title.f123.mp4", "Title.f251.webm", etc.
+        let splitStreamPattern = try? NSRegularExpression(pattern: #"\.f\d+\.[a-zA-Z0-9]+$"#)
+
+        for case let fileURL as URL in enumerator {
+            let name = fileURL.lastPathComponent
+            let range = NSRange(name.startIndex..., in: name)
+            if splitStreamPattern?.firstMatch(in: name, range: range) != nil {
+                try? fm.removeItem(at: fileURL)
+            }
+        }
+    }
+
     // MARK: - Command builders
 
     private func ytdlpArgs(source: FollowedSource, downloadDir: URL, archiveFile: URL, cookiesFile: URL?) -> [String] {
@@ -310,6 +343,7 @@ class DownloadEngine: ObservableObject {
         }
         args += [
             "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+            "--continue",
             "--download-archive", archiveFile.path,
             "--output", downloadDir.path + "/%(uploader)s/%(title)s.%(ext)s",
             "--output", "thumbnail:" + downloadDir.path + "/%(uploader)s/.thumbnails/%(title)s.%(ext)s",
