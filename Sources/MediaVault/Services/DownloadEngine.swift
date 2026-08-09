@@ -314,7 +314,7 @@ class DownloadEngine: ObservableObject {
     // yt-dlp split-stream intermediates look like "Title.f251.webm" or "Title.f137.mp4".
     // These can't be partially resumed and will corrupt the merge if truncated.
     // Single-file .part files are intentionally left — --continue resumes them.
-    private static func cleanOrphanedStreams(in dir: URL) async {
+    private nonisolated static func cleanOrphanedStreams(in dir: URL) {
         let fm = FileManager.default
         guard let enumerator = fm.enumerator(
             at: dir,
@@ -322,10 +322,9 @@ class DownloadEngine: ObservableObject {
             options: [.skipsHiddenFiles]
         ) else { return }
 
-        // Matches "Title.f123.mp4", "Title.f251.webm", etc.
         let splitStreamPattern = try? NSRegularExpression(pattern: #"\.f\d+\.[a-zA-Z0-9]+$"#)
-
-        for case let fileURL as URL in enumerator {
+        let urls = enumerator.allObjects.compactMap { $0 as? URL }
+        for fileURL in urls {
             let name = fileURL.lastPathComponent
             let range = NSRange(name.startIndex..., in: name)
             if splitStreamPattern?.firstMatch(in: name, range: range) != nil {
