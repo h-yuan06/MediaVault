@@ -314,7 +314,7 @@ class DownloadEngine: ObservableObject {
     // yt-dlp split-stream intermediates look like "Title.f251.webm" or "Title.f137.mp4".
     // These can't be partially resumed and will corrupt the merge if truncated.
     // Single-file .part files are intentionally left — --continue resumes them.
-    private static func cleanOrphanedStreams(in dir: URL) {
+    private static func cleanOrphanedStreams(in dir: URL) async {
         let fm = FileManager.default
         guard let enumerator = fm.enumerator(
             at: dir,
