@@ -214,8 +214,8 @@
     Private
   </div>
   <div class="search-bar">
-    <input type="text" id="search-input" placeholder="Search your library…" oninput="handleSearch(this.value)">
-    <button>⌕</button>
+    <input type="text" id="search-input" placeholder="Search your library…" onkeydown="if(event.key==='Enter')submitSearch(this.value)">
+    <button onclick="submitSearch(document.getElementById('search-input').value)">⌕</button>
   </div>
 </header>
 
@@ -1131,8 +1131,19 @@ function filterChannel(channelId, el) {
   showSidebar();
   renderGrid(filteredItems()); setActive(el);
 }
-function handleSearch(q) {
+function submitSearch(q) {
   q = q.toLowerCase().trim();
+  if (document.getElementById("player-view").style.display !== "none") {
+    cancelAutoplay();
+    const vid = document.getElementById("main-video");
+    vid.pause(); vid.src = "";
+    currentVideo = null;
+    document.getElementById("player-view").style.display = "none";
+    document.getElementById("home-view").style.display = "block";
+    activeChannel = "all";
+    buildChannelList();
+    setActive(document.getElementById("home-btn"));
+  }
   let base = activeChannel === "all" ? items : items.filter(i => i.channelId === activeChannel);
   if (likedFilterOn) base = base.filter(i => isItemLiked(i));
   renderGrid(applySort(q ? base.filter(i => i.title.toLowerCase().includes(q) || i.channel.toLowerCase().includes(q)) : base));

@@ -17,6 +17,7 @@ class ToolChecker: ObservableObject {
     @Published private(set) var ffmpeg    = ToolStatus(name: "ffmpeg",      path: nil)
     @Published private(set) var deno      = ToolStatus(name: "Deno",        path: nil)
     @Published private(set) var isChecking = false
+    @Published private(set) var upgradingTool: String? = nil
 
     var allAvailable: Bool { ytdlp.isAvailable && ffmpeg.isAvailable && deno.isAvailable }
 
@@ -97,6 +98,48 @@ class ToolChecker: ObservableObject {
         process.standardError = Pipe()
         try? process.run()
         process.waitUntilExit()
+    }
+
+    // brew package name for each tool (nil = self-update via -U flag)
+    private static let brewPackage: [String: String?] = [
+        "yt-dlp":     nil,
+        "gallery-dl": "gallery-dl",
+        "ffmpeg":     "ffmpeg",
+        "Deno":       "deno",
+    ]
+
+    func upgradeTool(_ toolName: String) {
+        guard upgradingTool == nil else { return }
+        upgradingTool = toolName
+        Task.detached(priority: .userInitiated) { [weak self] in
+            let package = Self.brewPackage[toolName] ?? nil
+            if let package {
+                guard let brew = DependencyInstaller.brewPaths.first(where: {
+                    FileManager.default.isExecutableFile(atPath: $0)
+                }) else {
+                    await MainActor.run { self?.upgradingTool = nil }
+                    return
+                }
+                let process = Process()
+                process.executableURL = URL(fileURLWithPath: brew)
+                process.arguments = ["upgrade", package]
+                var env = ProcessInfo.processInfo.environment
+                env["PATH"] = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+                process.environment = env
+                process.standardOutput = Pipe()
+                process.standardError = Pipe()
+                try? process.run()
+                process.waitUntilExit()
+            } else {
+                // yt-dlp self-update
+                let path = Self.resolve("yt-dlp") ?? "yt-dlp"
+                Self.update(toolPath: path)
+            }
+            await MainActor.run {
+                self?.upgradingTool = nil
+                Task { await self?.check() }
+            }
+        }
     }
 
     func upgradeIfNeeded() {

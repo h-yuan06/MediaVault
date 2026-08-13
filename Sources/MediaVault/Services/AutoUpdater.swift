@@ -71,12 +71,16 @@ class AutoUpdater: ObservableObject {
                 var request = URLRequest(url: releasesURL)
                 request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
                 let (data, _) = try await URLSession.shared.data(for: request)
-                guard
-                    let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                    let tagName = json["tag_name"] as? String,
-                    let remoteBuild = Int(tagName)
-                else {
+                guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
                     updateCheckResult = .failed("Could not parse release response")
+                    return
+                }
+                if let apiMessage = json["message"] as? String {
+                    updateCheckResult = .failed("GitHub: \(apiMessage)")
+                    return
+                }
+                guard let tagName = json["tag_name"] as? String, let remoteBuild = Int(tagName) else {
+                    updateCheckResult = .failed("No releases found")
                     return
                 }
                 if remoteBuild > localBuild {

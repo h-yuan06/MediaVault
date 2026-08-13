@@ -11,6 +11,8 @@ struct SourceDetailView: View {
     @State private var editedURL = ""
     @State private var showingDuplicates = false
     @StateObject private var duplicateDetector = DuplicateDetector()
+    @State private var diskVideoCount: Int? = nil
+    @State private var diskImageCount: Int? = nil
 
     private var sourceItems: [DownloadItem] {
         engine.queue.filter { $0.sourceId == source.id }
@@ -22,6 +24,45 @@ struct SourceDetailView: View {
 
     private var hasPaused: Bool {
         sourceItems.contains { $0.status == .paused }
+    }
+
+    private var diskCountLabel: String {
+        switch (diskVideoCount, diskImageCount) {
+        case (nil, nil):
+            return "\(source.downloadedCount) downloaded"
+        case (let v?, let i?):
+            switch (v, i) {
+            case (0, 0): return "0 files"
+            case (_, 0): return "\(v) video\(v == 1 ? "" : "s")"
+            case (0, _): return "\(i) image\(i == 1 ? "" : "s")"
+            default:     return "\(v) video\(v == 1 ? "" : "s"), \(i) image\(i == 1 ? "" : "s")"
+            }
+        default:
+            return "\(source.downloadedCount) downloaded"
+        }
+    }
+
+    private static let videoExts: Set<String> = ["mp4","mkv","webm","mov","m4v","avi"]
+    private static let imageExts: Set<String> = ["jpg","jpeg","png","gif","webp","heic"]
+
+    private func refreshDiskCounts() async {
+        guard let dir = store.downloadDir(for: source) else { return }
+        let (videos, images) = await Task.detached(priority: .utility) {
+            var v = 0, i = 0
+            guard let enumerator = FileManager.default.enumerator(
+                at: dir,
+                includingPropertiesForKeys: nil,
+                options: [.skipsHiddenFiles, .skipsPackageDescendants]
+            ) else { return (0, 0) }
+            for case let url as URL in enumerator {
+                let ext = url.pathExtension.lowercased()
+                if Self.videoExts.contains(ext) { v += 1 }
+                else if Self.imageExts.contains(ext) { i += 1 }
+            }
+            return (v, i)
+        }.value
+        diskVideoCount = videos
+        diskImageCount = images
     }
 
     var body: some View {
@@ -54,9 +95,13 @@ struct SourceDetailView: View {
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
-                        Label("\(source.downloadedCount) downloaded", systemImage: "arrow.down.circle")
+                        Label(diskCountLabel, systemImage: "arrow.down.circle")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                            .task { await refreshDiskCounts() }
+                            .onChange(of: engine.queue.filter({ $0.sourceId == source.id }).map(\.status)) { _ in
+                                Task { await refreshDiskCounts() }
+                            }
                     }
 
                     downloadFolderRow
@@ -296,9 +341,10 @@ struct DownloadItemRow: View {
                         Text(item.outputLog)
                             .font(.system(.caption2, design: .monospaced))
                             .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(6)
-                            .id("bottom")
+                        Color.clear.frame(height: 1).id("log-bottom")
                     }
                     .frame(height: 100)
                     .background(Color(nsColor: .textBackgroundColor))
@@ -306,7 +352,7 @@ struct DownloadItemRow: View {
                     .overlay(RoundedRectangle(cornerRadius: 6).stroke(.separator, lineWidth: 0.5))
                     .padding(.leading, 24)
                     .onChange(of: item.outputLog) { _ in
-                        proxy.scrollTo("bottom", anchor: .bottom)
+                        proxy.scrollTo("log-bottom", anchor: .bottom)
                     }
                 }
             }

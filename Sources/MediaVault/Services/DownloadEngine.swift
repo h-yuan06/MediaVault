@@ -152,6 +152,7 @@ class DownloadEngine: ObservableObject {
         }
 
         var newDownloads = 0
+        var lastLogLine = ""
         var errorLines: [String] = []
         var logBuffer = ""
         var lastFlush = Date()
@@ -191,6 +192,7 @@ class DownloadEngine: ObservableObject {
 
         for await line in outputPipe.fileHandleForReading.lines() {
             if line.hasPrefix("ERROR:") { errorLines.append(line) }
+            lastLogLine = line
             logBuffer += line + "\n"
 
             if useGalleryDl {
@@ -214,7 +216,8 @@ class DownloadEngine: ObservableObject {
         let exitCode = process.terminationStatus
         let isNonFatalExit = exitCode != 0 && newDownloads == 0 && item.status != .failed
         if exitCode == 0 || isNonFatalExit {
-            let upToDate = newDownloads == 0
+            let finishedKeyword = DownloadFinishedKeywords.all.contains(where: { lastLogLine.contains($0) })
+            let upToDate = newDownloads == 0 && finishedKeyword
             item.status = .completed
             item.progress = 1.0
             item.speedDescription = ""
@@ -343,6 +346,11 @@ class DownloadEngine: ObservableObject {
 
     // MARK: - Command builders
 
+    private static func extraFlags(forKey key: String) -> [String] {
+        let raw = UserDefaults.standard.string(forKey: key) ?? ""
+        return raw.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
+    }
+
     private func ytdlpArgs(source: FollowedSource, downloadDir: URL, archiveFile: URL, cookiesFile: URL?) -> [String] {
         var args: [String] = []
         if let cookies = cookiesFile {
@@ -358,19 +366,22 @@ class DownloadEngine: ObservableObject {
             "--write-thumbnail", "--convert-thumbnails", "jpg",
             "--ignore-no-formats-error",
             "--newline",
-            source.url
         ]
+        args += Self.extraFlags(forKey: "ytdlpExtraFlags")
+        args.append(source.url)
         return args
     }
 
     private func galleryDlArgs(source: FollowedSource, downloadDir: URL, archiveFile: URL) -> [String] {
-        [
+        var args: [String] = [
             "--download-archive", archiveFile.path,
             "--destination", downloadDir.path,
             "-o", "directory=[]",
             "--no-colors",
-            source.url
         ]
+        args += Self.extraFlags(forKey: "galleryDlExtraFlags")
+        args.append(source.url)
+        return args
     }
 }
 

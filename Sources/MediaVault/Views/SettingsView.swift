@@ -5,6 +5,9 @@ struct SettingsView: View {
     @EnvironmentObject var tools: ToolChecker
     @EnvironmentObject var updater: AutoUpdater
 
+    @AppStorage("ytdlpExtraFlags")    private var ytdlpExtraFlags    = ""
+    @AppStorage("galleryDlExtraFlags") private var galleryDlExtraFlags = ""
+
     var body: some View {
         Form {
             Section("Download Location") {
@@ -44,8 +47,27 @@ struct SettingsView: View {
                         }
                     }
                     .buttonStyle(.bordered)
-                    .disabled(tools.isChecking)
+                    .disabled(tools.isChecking || tools.upgradingTool != nil)
                 }
+            }
+
+            Section {
+                LabeledContent("yt-dlp") {
+                    TextField("e.g. --no-playlist --max-downloads 10", text: $ytdlpExtraFlags)
+                        .font(.system(.body, design: .monospaced))
+                        .textFieldStyle(.roundedBorder)
+                }
+                LabeledContent("gallery-dl") {
+                    TextField("e.g. --range 1-20 --chapter-filter", text: $galleryDlExtraFlags)
+                        .font(.system(.body, design: .monospaced))
+                        .textFieldStyle(.roundedBorder)
+                }
+            } header: {
+                Text("Extra Flags")
+            } footer: {
+                Text("Appended to each download command. Separate flags with spaces.")
+                    .foregroundStyle(.secondary)
+                    .font(.caption)
             }
 
             Section("Schedule") {
@@ -113,6 +135,20 @@ struct SettingsView: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .truncationMode(.middle)
+            let isUpgrading = tools.upgradingTool == status.name
+            Button(action: { tools.upgradeTool(status.name) }) {
+                if isUpgrading {
+                    HStack(spacing: 4) {
+                        ProgressView().scaleEffect(0.6)
+                        Text("Updating…")
+                    }
+                } else {
+                    Text("Update")
+                }
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .disabled(isUpgrading || tools.upgradingTool != nil || tools.isChecking || !status.isAvailable)
         }
     }
 }
