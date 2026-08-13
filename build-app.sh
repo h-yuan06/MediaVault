@@ -11,6 +11,27 @@ BUILD_NUMBER=${BUILD_NUMBER:-0}
 # ---------------------------------------------------------------------------
 echo "Building ${APP_NAME} (build ${BUILD_NUMBER})..."
 
+# ---------------------------------------------------------------------------
+# Generate DownloadFinishedKeywords.swift from the markdown keyword list.
+# This replaces the SPM build-tool plugin, which swiftc/xcodebuild skip.
+# ---------------------------------------------------------------------------
+KEYWORDS_MD="Sources/MediaVault/Resources/download-finished-keywords.md"
+KEYWORDS_SWIFT="Sources/MediaVault/Generated/DownloadFinishedKeywords.swift"
+mkdir -p "$(dirname "$KEYWORDS_SWIFT")"
+
+{
+  echo "// Auto-generated from download-finished-keywords.md — do not edit."
+  echo "enum DownloadFinishedKeywords {"
+  echo "    static let all: [String] = ["
+  grep -v '^\s*#' "$KEYWORDS_MD" | grep -v '^\s*$' | while IFS= read -r line; do
+    escaped="${line//\\/\\\\}"
+    escaped="${escaped//\"/\\\"}"
+    echo "        \"$escaped\","
+  done
+  echo "    ]"
+  echo "}"
+} > "$KEYWORDS_SWIFT"
+
 if [ "${CI}" = "true" ]; then
     SDK=$(xcrun --show-sdk-path)
     SOURCES=$(find Sources/MediaVault -name "*.swift" | sort | tr '\n' ' ')
