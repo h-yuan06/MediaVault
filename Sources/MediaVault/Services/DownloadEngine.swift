@@ -50,6 +50,9 @@ class DownloadEngine: ObservableObject {
         queue.insert(item, at: 0)
 
         Task {
+            await Task.detached(priority: .background) {
+                Self.cleanOrphanedStreams(in: downloadDir)
+            }.value
             await run(item: item, source: source, downloadDir: downloadDir, archiveFile: archiveFile, store: store)
         }
     }
@@ -61,8 +64,7 @@ class DownloadEngine: ObservableObject {
                 activeProcesses[item.id]?.terminate()
                 item.status = .paused
             }
-        // Clean up orphaned split-stream temp files so resume doesn't merge truncated streams.
-        // Single-file .part files are left intact — --continue will resume them.
+        // Clean up all .part and split-stream temp files on pause so resume starts fresh.
         if let source = store.sources.first(where: { $0.id == sourceId }),
            let downloadDir = store.downloadDir(for: source) {
             Task.detached(priority: .background) {
@@ -322,10 +324,16 @@ class DownloadEngine: ObservableObject {
             options: [.skipsHiddenFiles]
         ) else { return }
 
+        // Remove .part files (stale partial downloads whose CDN URLs have expired)
+        // and split-stream intermediates (*.fNNN.*) that can't be safely resumed.
         let splitStreamPattern = try? NSRegularExpression(pattern: #"\.f\d+\.[a-zA-Z0-9]+$"#)
         let urls = enumerator.allObjects.compactMap { $0 as? URL }
         for fileURL in urls {
             let name = fileURL.lastPathComponent
+            if name.hasSuffix(".part") {
+                try? fm.removeItem(at: fileURL)
+                continue
+            }
             let range = NSRange(name.startIndex..., in: name)
             if splitStreamPattern?.firstMatch(in: name, range: range) != nil {
                 try? fm.removeItem(at: fileURL)
@@ -342,7 +350,7 @@ class DownloadEngine: ObservableObject {
         }
         args += [
             "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
-            "--continue",
+            "--sleep-interval", "2", "--max-sleep-interval", "8",
             "--download-archive", archiveFile.path,
             "--output", downloadDir.path + "/%(uploader)s/%(title)s.%(ext)s",
             "--output", "thumbnail:" + downloadDir.path + "/%(uploader)s/.thumbnails/%(title)s.%(ext)s",

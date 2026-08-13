@@ -54,7 +54,8 @@ struct ContentView: View {
         } detail: {
             if selectedSourceIds.count == 1,
                let id = selectedSourceIds.first,
-               let source = store.sources.first(where: { $0.id == id }) {
+               let source = store.sources.first(where: { $0.id == id }),
+               privateUnlocked || !(store.group(for: source)?.isPrivate ?? false) {
                 SourceDetailView(source: source)
                     .environmentObject(store)
                     .environmentObject(engine)
@@ -147,6 +148,9 @@ struct ContentView: View {
         .onChange(of: scenePhase) { phase in
             if phase != .active { privateUnlocked = false }
         }
+        .onChange(of: privateUnlocked) { _, unlocked in
+            if !unlocked { clearPrivateSelection() }
+        }
         .alert("Rename Group", isPresented: Binding(
             get: { renamingGroup != nil },
             set: { if !$0 { renamingGroup = nil } }
@@ -200,6 +204,14 @@ struct ContentView: View {
                     }
                 }
             }
+    }
+
+    private func clearPrivateSelection() {
+        let visibleIds = Set(store.sources.filter { source in
+            guard let group = store.group(for: source) else { return true }
+            return !group.isPrivate
+        }.map { $0.id })
+        selectedSourceIds = selectedSourceIds.intersection(visibleIds)
     }
 
     private func isExpanded(_ group: SourceGroup) -> Binding<Bool> {
@@ -346,8 +358,9 @@ struct ContentView: View {
     }
 
     private var downloadQueueFallback: some View {
-        DownloadQueueView()
+        DownloadQueueView(privateUnlocked: privateUnlocked)
             .environmentObject(engine)
+            .environmentObject(store)
     }
 
     // MARK: - Onboarding screens

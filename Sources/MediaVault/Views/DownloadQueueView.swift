@@ -2,9 +2,18 @@ import SwiftUI
 
 struct DownloadQueueView: View {
     @EnvironmentObject var engine: DownloadEngine
+    @EnvironmentObject var store: SourceStore
+    var privateUnlocked: Bool
 
-    private var active: [DownloadItem] { engine.queue.filter { $0.status.isActive } }
-    private var finished: [DownloadItem] { engine.queue.filter { $0.status.isFinished } }
+    private var visibleQueue: [DownloadItem] {
+        engine.queue.filter { item in
+            guard let source = store.sources.first(where: { $0.id == item.sourceId }),
+                  let group = store.group(for: source) else { return true }
+            return !group.isPrivate || privateUnlocked
+        }
+    }
+    private var active: [DownloadItem] { visibleQueue.filter { $0.status.isActive } }
+    private var finished: [DownloadItem] { visibleQueue.filter { $0.status.isFinished } }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {

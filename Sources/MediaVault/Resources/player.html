@@ -705,7 +705,8 @@ function toggleLikedFilter(el) {
 function buildChannelList() {
   const seen = new Map();
   items.forEach(i => { if (!seen.has(i.channelId)) seen.set(i.channelId, i); });
-  document.getElementById("channel-list").innerHTML = [...seen.values()].map(i => `
+  const channels = [...seen.values()].sort((a, b) => a.channel.localeCompare(b.channel));
+  document.getElementById("channel-list").innerHTML = channels.map(i => `
     <div class="sidebar-item ${activeChannel === i.channelId ? "active" : ""}"
          onclick="filterChannel('${i.channelId}', this)">
       <div class="ch-avatar" style="background:${i.color}">${i.channel[0]}</div>
