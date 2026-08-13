@@ -38,6 +38,7 @@ struct MediaVaultApp: App {
             SettingsView()
                 .environmentObject(store)
                 .environmentObject(tools)
+                .environmentObject(updater)
         }
     }
 }

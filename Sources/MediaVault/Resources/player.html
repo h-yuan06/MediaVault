@@ -87,7 +87,8 @@
   .player-title { font-size: 17px; font-weight: 700; line-height: 1.3; margin-bottom: 10px; }
   .player-channel-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
   .player-ch-avatar { width: 36px; height: 36px; border-radius: 50%; font-size: 14px; font-weight: 700; display: flex; align-items: center; justify-content: center; color: #fff; flex-shrink: 0; }
-  .player-ch-name { font-size: 13px; font-weight: 600; }
+  .player-ch-name { font-size: 13px; font-weight: 600; cursor: pointer; }
+  .player-ch-name:hover { text-decoration: underline; }
   .player-ch-meta { font-size: 11px; color: var(--text3); }
   .player-actions { display: flex; gap: 7px; margin-bottom: 13px; flex-wrap: wrap; }
   .action-pill { display: flex; align-items: center; gap: 5px; background: var(--bg3); border: 1px solid var(--border); border-radius: 20px; color: var(--text); font-size: 12px; font-weight: 600; padding: 6px 13px; cursor: pointer; transition: background 0.12s; }
@@ -95,6 +96,18 @@
   .action-pill.liked { background: #3f0f0f; border-color: #b91c1c; color: #ef4444; }
   .player-desc { background: var(--bg2); border-radius: var(--radius-sm); padding: 11px 13px; font-size: 12px; color: var(--text2); line-height: 1.6; }
   .player-desc .desc-stats { font-weight: 700; color: var(--text); margin-bottom: 5px; }
+
+  /* Autoplay countdown overlay */
+  .autoplay-overlay { position: absolute; bottom: 12px; right: 12px; background: rgba(0,0,0,0.78); border: 1px solid rgba(255,255,255,0.1); border-radius: var(--radius); padding: 10px 13px; display: none; width: 240px; pointer-events: all; }
+  .autoplay-overlay.visible { display: block; }
+  .autoplay-label { font-size: 10px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 5px; }
+  .autoplay-title { font-size: 12px; font-weight: 600; color: var(--text); line-height: 1.3; margin-bottom: 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .autoplay-row { display: flex; align-items: center; gap: 8px; }
+  .autoplay-progress { flex: 1; height: 3px; background: rgba(255,255,255,0.15); border-radius: 2px; overflow: hidden; }
+  .autoplay-progress-bar { height: 100%; background: var(--text); border-radius: 2px; transition: width 1s linear; }
+  .autoplay-count { font-size: 11px; color: var(--text2); white-space: nowrap; }
+  .autoplay-cancel { background: transparent; border: 1px solid rgba(255,255,255,0.18); border-radius: 20px; color: var(--text2); font-size: 11px; font-weight: 500; padding: 3px 10px; cursor: pointer; white-space: nowrap; transition: background 0.12s, color 0.12s; }
+  .autoplay-cancel:hover { background: rgba(255,255,255,0.12); color: var(--text); }
 
   /* Theater mode: video fills the entire WKWebView */
   body.theater header,
@@ -244,12 +257,21 @@
         <div class="player-main">
           <div class="player-video-wrap">
             <video id="main-video" controls autoplay></video>
+            <div class="autoplay-overlay" id="autoplay-overlay">
+              <div class="autoplay-label">Up next</div>
+              <div class="autoplay-title" id="autoplay-next-title"></div>
+              <div class="autoplay-row">
+                <div class="autoplay-progress"><div class="autoplay-progress-bar" id="autoplay-bar" style="width:100%"></div></div>
+                <span class="autoplay-count" id="autoplay-count">5s</span>
+                <button class="autoplay-cancel" onclick="cancelAutoplay()">Cancel</button>
+              </div>
+            </div>
           </div>
           <div class="player-title" id="player-title"></div>
           <div class="player-channel-row">
             <div class="player-ch-avatar" id="player-avatar"></div>
             <div>
-              <div class="player-ch-name" id="player-ch-name"></div>
+              <div class="player-ch-name" id="player-ch-name" onclick="filterChannelFromPlayer()"></div>
               <div class="player-ch-meta" id="player-ch-meta"></div>
             </div>
           </div>
@@ -398,6 +420,7 @@ function escHtml(s) {
 let publicItems = [], privateItems = [], items = [];
 let isPrivate = false, currentVideo = null;
 let activeChannel = "all", currentSort = null, likedFilterOn = false;
+let upNextQueue = [], autoplaySecsLeft = 0, _autoplayInterval = null;
 let currentAlbum = null, albumPhotos = [], albumPhotoIndex = 0, albumLikedOnly = false;
 const likedPaths = new Set();
 
@@ -732,6 +755,41 @@ function loadLibrary(payload) {
   renderGrid(filteredItems());
 }
 
+// ── Up-next queue builder ──────────────────────────────────────────
+function buildUpNextQueue(current, size) {
+  const videos = items.filter(x => x.type === "video" && x.id !== current.id);
+  const sameChannel  = shuffle(videos.filter(x => x.channelId === current.channelId));
+  const otherChannel = shuffle(videos.filter(x => x.channelId !== current.channelId));
+
+  const queue = [];
+  const used  = new Set();
+
+  function pickFrom(pool) {
+    for (let i = 0; i < pool.length; i++) {
+      if (!used.has(pool[i].id)) { used.add(pool[i].id); return pool.splice(i, 1)[0]; }
+    }
+    return null;
+  }
+  function pickOther() { return pickFrom(otherChannel); }
+  function pickSame()  { return pickFrom(sameChannel);  }
+  function pickEither(sameChance) {
+    if (Math.random() < sameChance && sameChannel.length) return pickSame() || pickOther();
+    return pickOther() || pickSame();
+  }
+
+  // Slot 0: always same channel
+  const first = pickSame() || pickOther();
+  if (first) queue.push(first);
+
+  for (let i = 1; i < size; i++) {
+    const chance = i < 5 ? 0.5 : 0.3;
+    const pick = pickEither(chance);
+    if (pick) queue.push(pick);
+  }
+
+  return queue;
+}
+
 // ── Video player ───────────────────────────────────────────────────
 function playVideo(id) {
   const v = items.find(x => x.id === id);
@@ -758,7 +816,12 @@ function playVideo(id) {
   document.getElementById("desc-text").textContent = "Downloaded via MediaVault";
   updateVideoLikeBtn();
 
-  const others = applySort(items.filter(x => x.id !== v.id && x.type === "video")).slice(0, 12);
+  cancelAutoplay();
+  vid.removeEventListener("ended", onVideoEnded);
+  vid.addEventListener("ended", onVideoEnded, { once: true });
+
+  const others = buildUpNextQueue(v, 12);
+  upNextQueue = others;
   document.getElementById("up-next-list").innerHTML = others.map(o => {
     const oURL = fileURL(o.path);
     const safe  = o.path.replace(/\\/g,"\\\\").replace(/'/g,"\\'");
@@ -792,6 +855,38 @@ function playVideo(id) {
     if (o && o.thumbnailPath) probeDuration(thumb.querySelector(".duration-badge"), o.path);
   });
   document.querySelector(".main").scrollTo(0, 0);
+}
+
+// ── Autoplay ───────────────────────────────────────────────────────
+const AUTOPLAY_SECS = 5;
+function onVideoEnded() {
+  if (!upNextQueue.length) return;
+  const next = upNextQueue[0];
+  document.getElementById("autoplay-next-title").textContent = next.title;
+  document.getElementById("autoplay-bar").style.transition = "none";
+  document.getElementById("autoplay-bar").style.width = "100%";
+  document.getElementById("autoplay-overlay").classList.add("visible");
+  autoplaySecsLeft = AUTOPLAY_SECS;
+  document.getElementById("autoplay-count").textContent = autoplaySecsLeft + "s";
+
+  // Force reflow so the transition fires
+  document.getElementById("autoplay-bar").getBoundingClientRect();
+  document.getElementById("autoplay-bar").style.transition = `width ${AUTOPLAY_SECS}s linear`;
+  document.getElementById("autoplay-bar").style.width = "0%";
+
+  _autoplayInterval = setInterval(() => {
+    autoplaySecsLeft--;
+    document.getElementById("autoplay-count").textContent = autoplaySecsLeft + "s";
+    if (autoplaySecsLeft <= 0) {
+      cancelAutoplay();
+      playVideo(next.id);
+    }
+  }, 1000);
+}
+function cancelAutoplay() {
+  clearInterval(_autoplayInterval);
+  _autoplayInterval = null;
+  document.getElementById("autoplay-overlay").classList.remove("visible");
 }
 
 function updateVideoLikeBtn() {
@@ -994,6 +1089,7 @@ document.addEventListener("keydown", e => {
 
 // ── Navigation ─────────────────────────────────────────────────────
 function goHome() {
+  cancelAutoplay();
   activeChannel = "all";
   document.getElementById("home-view").style.display = "block";
   document.getElementById("player-view").style.display = "none";
@@ -1006,7 +1102,25 @@ function goHome() {
   buildChannelList(); renderGrid(filteredItems());
   setActive(document.getElementById("home-btn"));
 }
+function filterChannelFromPlayer() {
+  if (!currentVideo) return;
+  cancelAutoplay();
+  activeChannel = currentVideo.channelId;
+  const vid = document.getElementById("main-video");
+  vid.pause(); vid.src = "";
+  currentVideo = null;
+  document.getElementById("player-view").style.display = "none";
+  document.getElementById("home-view").style.display = "block";
+  showSidebar();
+  renderGrid(filteredItems());
+  // Highlight the matching sidebar item
+  const sidebarItems = document.querySelectorAll("#channel-list .sidebar-item");
+  sidebarItems.forEach(el => {
+    if (el.getAttribute("onclick") && el.getAttribute("onclick").includes(`'${activeChannel}'`)) setActive(el);
+  });
+}
 function filterChannel(channelId, el) {
+  cancelAutoplay();
   activeChannel = channelId;
   document.getElementById("home-view").style.display = "block";
   document.getElementById("player-view").style.display = "none";

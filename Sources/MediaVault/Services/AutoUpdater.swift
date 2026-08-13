@@ -38,13 +38,56 @@ class AutoUpdater: ObservableObject {
     }()
 
     @Published var downloadProgress: Double? = nil  // nil = idle, 0–1 = downloading
+    @Published var isCheckingForUpdates = false
+    @Published var updateCheckResult: UpdateCheckResult? = nil
+
+    enum UpdateCheckResult {
+        case upToDate
+        case updateAvailable(remoteBuild: Int)
+        case failed(String)
+    }
 
     private let releasesURL = URL(string: "https://api.github.com/repos/h-yuan06/MediaVault/releases/latest")!
 
     private init() {}
 
+    var localBuild: Int? { localBuildNumber() }
+
     func checkAndInstall() {
         Task { await performUpdate() }
+    }
+
+    func checkForUpdatesOnly() {
+        Task {
+            isCheckingForUpdates = true
+            updateCheckResult = nil
+            defer { isCheckingForUpdates = false }
+
+            guard let localBuild = localBuildNumber() else {
+                updateCheckResult = .failed("Could not read local build number")
+                return
+            }
+            do {
+                var request = URLRequest(url: releasesURL)
+                request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+                let (data, _) = try await URLSession.shared.data(for: request)
+                guard
+                    let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                    let tagName = json["tag_name"] as? String,
+                    let remoteBuild = Int(tagName)
+                else {
+                    updateCheckResult = .failed("Could not parse release response")
+                    return
+                }
+                if remoteBuild > localBuild {
+                    updateCheckResult = .updateAvailable(remoteBuild: remoteBuild)
+                } else {
+                    updateCheckResult = .upToDate
+                }
+            } catch {
+                updateCheckResult = .failed(error.localizedDescription)
+            }
+        }
     }
 
     private func performUpdate() async {
